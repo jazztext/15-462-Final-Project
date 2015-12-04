@@ -1,0 +1,5 @@
+/home/zach/Documents/15462/asst3_pathtracer/build/src/CMakeFiles/pathtracer.dir
+/home/zach/Documents/15462/asst3_pathtracer/build/CMU462/deps/glew/CMakeFiles/glew.dir
+/home/zach/Documents/15462/asst3_pathtracer/build/CMU462/deps/glfw/src/CMakeFiles/glfw.dir
+/home/zach/Documents/15462/asst3_pathtracer/build/CMU462/deps/glfw/CMakeFiles/uninstall.dir
+/home/zach/Documents/15462/asst3_pathtracer/build/CMU462/src/CMakeFiles/CMU462.dir
