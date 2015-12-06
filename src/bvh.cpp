@@ -9,119 +9,199 @@
 using namespace std;
 
 namespace CMU462 { namespace StaticScene {
+// @TODO: clean this up
+unsigned int morton3D(Vector3D);
+typedef float red_func(float);
+typedef std::pair<unsigned int, Vector3D> morton_pt;
+
+float aac_reduce(float x) {
+  return 0.6*pow(x, 0.6);
+}
+
+/*
+
+BVHNode *build_tree(std::vector<Primitive*> &prims, int start, int end, int leaf_prims, red_func f) {
+  if (prims.size() < leaf_prims) {
+    BVHNode *root = BVHNode(start, end - start, 
+*/
+
+/* Stuff for highest-level BVH function (AAC in paper) */
 
 
-void split_bvhnode(BVHNode *root, size_t max_leaf_size, std::vector<Primitive*> &prims) {
-  if (root->range <= max_leaf_size) return;
-  int start = root->start;
-  int end = start + root->range;
+bool pair_cmp(morton_pt &p1, morton_pt &p2) {
+  if (p1.first < p2.first) return -1;
+  else if (p1.first == p2.first) return 0;
+  return 1;
+}
+  
 
- 
+BVHNode *make_bvh_aac(std::vector<Primitive*> &prims, int leaf_prims, red_func f) {
   std::vector<Vector3D> centroids;
-  for (int i = start;i < end; i++) {
+  int n = prims.size();
+  centroids.resize(n);
+  BBox total = BBox();
+  for (int i = 0; i < n; i++) {
     BBox tmp = prims[i]->get_bbox();
-    centroids.push_back((tmp.max + tmp.min) / 2.0);
+    total.expand(tmp);
+    centroids[i] = (tmp.max + tmp.min) / 2.0;
+  }
+  Vector3D span = total.max - total.min;
+  Vector3D span_inv = Vector3D(1.0 / span[0], 1.0 / span[1], 1.0 / span[2]);
+  Vector3D adj = Vector3D(total.min[0]*span_inv[0],total.min[1]*span_inv[1],total.min[2]*span_inv[2]);
+  for (int i = 0; i < n; i++) {
+    centroids[i][0] = centroids[i][0] * span_inv[0] - adj[0];
+    centroids[i][1] = centroids[i][1] * span_inv[1] - adj[1];
+    centroids[i][2] = centroids[i][2] * span_inv[2] - adj[2];
+  }
+  std::vector<morton_pt> cent_zs;
+  cent_zs.resize(n);
+  for (int i = 0; i < n; i++) {
+    cent_zs[i].first = morton3D(centroids[i]);
+    cent_zs[i].second = centroids[i];
   }
 
+  // TODO: Maybe implement radix sort here?
+  std::sort(cent_zs.begin(), cent_zs.end(), pair_cmp); 
+  
+  return NULL;
+}
 
-  int buckets = 32;
+/* This code copied from NVidia devblogs */
 
-  std::vector<BBox> cuts;
-  std::vector<int> cut_counts;
-  cuts.resize(buckets*buckets*buckets);
-  cut_counts.assign(buckets*buckets*buckets, 0);
+// Expands a 10-bit integer into 30 bits
+// by inserting 2 zeros after each bit.
+unsigned int expandBits(unsigned int v) {
+  v = (v * 0x00010001u) & 0xFF0000FFu;
+  v = (v * 0x00000101u) & 0x0F00F00Fu;
+  v = (v * 0x00000011u) & 0xC30C30C3u;
+  v = (v * 0x00000005u) & 0x49249249u;
+  return v;
+}
 
-  float best_cost = std::numeric_limits<float>::max();
-  int best_i = -1, best_dim = -1;
-  BBox best_l, best_r;
+// Calculates a 30-bit Morton code for the
+// given 3D point located within the unit cube [0,1].
+unsigned int morton3D(Vector3D v) {
+  float x = std::min(std::max(v[0] * 1024.0, 0.0), 1023.0);
+  float y = std::min(std::max(v[1] * 1024.0, 0.0), 1023.0);
+  float z = std::min(std::max(v[2] * 1024.0, 0.0), 1023.0);
+  unsigned int xx = expandBits((unsigned int)x);
+  unsigned int yy = expandBits((unsigned int)y);
+  unsigned int zz = expandBits((unsigned int)z);
+  return xx * 4 + yy * 2 + zz;
+}
 
-  for (int dim = 0; dim < 3; dim++) {
-    double dd = (root->bb.max[dim] - root->bb.min[dim]) / buckets;
-    for (int p = 0; p < root->range;p++) {
-      int bucket_i = abs(centroids[p][dim] - root->bb.min[dim]) / dd;
-      bucket_i = max(min(bucket_i, buckets-1), 0);
-      cuts[dim*buckets + bucket_i].expand(prims[p + start]->get_bbox());
-      cut_counts[dim*buckets + bucket_i]++;
+/* End NVidia code */
+
+double surfaceAreaCost(BVHNode *node, vector<BBox>& bboxes,
+                       vector<int>& primCounts, int bin, int numBins)
+{
+  double sn = node->bb.surface_area();
+  BBox bboxA, bboxB;
+  int na = 0, nb = 0;
+  for (int i = 0; i < numBins; i++) {
+    if (i < bin) {
+      bboxA.expand(bboxes[i]);
+      na += primCounts[i];
     }
-    
-    for (int b = 1; b < buckets; b++) {
-      BBox lower, upper;
-      int lower_c = 0, upper_c = 0;
-      for (int i = 0; i < b; i++) {
-        lower.expand(cuts[dim*buckets + i]);
-        lower_c += cut_counts[dim*buckets+i];
-      }
-      for (int i=b; i < buckets; i++) {
-        upper.expand(cuts[dim*buckets + i]);
-        upper_c += cut_counts[dim*buckets+i];
-      }
-      float cost = lower_c*(lower.surface_area() / root->bb.surface_area()) + 
-                   upper_c*(upper.surface_area() / root->bb.surface_area());
-      if (cost < best_cost && !lower.empty() && !upper.empty()) {
-        best_cost = cost;
-        best_i = b; best_dim = dim;
-        best_l = lower; best_r = upper;
-      }
+    else {
+      bboxB.expand(bboxes[i]);
+      nb += primCounts[i];
     }
   }
+  if (na == 0 || nb == 0) return INF_D;
+  return bboxA.surface_area() / sn * na + bboxB.surface_area() / sn * nb;
+}
 
-  std::vector<Primitive*> prims_lower;
-  std::vector<Primitive*> prims_upper;
-
-  double dd = (root->bb.max[best_dim] - root->bb.min[best_dim]) / buckets;
-  for (int p = 0; p < root->range;p++) {
-    int bucket_i = abs(centroids[p][best_dim] - root->bb.min[best_dim]) / dd;
-    bucket_i = max(min(bucket_i, buckets-1), 0);
-    ((bucket_i < best_i) ? prims_lower : prims_upper).push_back(prims[start+p]);
+void BVHAccel::splitNode(BVHNode *node, int maxLeafSize) {
+  //base case
+  if (node->range <= maxLeafSize) {
+    return;
   }
-
-  if (prims_lower.size() == 0 || prims_upper.size() == 0) {
-    prims_lower.clear();
-    prims_upper.clear();
-    for (int p=0;p<root->range;p++) {
-      ((p < root->range/2) ? prims_lower : prims_upper).push_back(prims[start+p]);
+  //choose plane to split along
+  double smallestBins = INF_D;
+  int numBins = 32;
+  vector<int> binAssignments;
+  int plane;
+  double bestCost = INF_D;
+  for (int n = 0; n < 3; n++) {
+    double start = INF_D, end = -INF_D;
+    for (int i = 0; i < node->range; i++) {
+      double p = primitives[node->start + i]->get_bbox().centroid()[n];
+      if (p < start) start = p;
+      if (p > end) end = p;
+    }
+    double binSize = (end - start) / numBins * 1.0001;
+    if (binSize == 0) {
+    }
+    else if (binSize > 0) {
+    vector<BBox> binBBoxes(numBins);
+    vector<int> binPrimCounts(numBins);
+    vector<int> currentBinAssignments(node->range);
+    for (unsigned i = 0; i < node->range; i++) {
+      BBox bbox = primitives[node->start + i]->get_bbox();
+      int bin = floor((bbox.centroid()[n] - start) / binSize);
+      binBBoxes[bin].expand(bbox);
+      binPrimCounts[bin]++;
+      currentBinAssignments[i] = bin;
+    }
+    for (int i = 1; i < numBins; i++) {
+      double cost = surfaceAreaCost(node, binBBoxes, binPrimCounts, i, numBins);
+      if (cost < bestCost) {
+        plane = i;
+        bestCost = cost;
+        binAssignments = currentBinAssignments;
+      }
+    }
+    if (binSize < smallestBins) smallestBins = binSize;
     }
   }
-
-  for (int i=0;i<prims_lower.size();i++) prims[start+i] = prims_lower[i];
-  for (int i=0;i<prims_upper.size();i++) prims[start+i+prims_lower.size()] = prims_upper[i];
-
-  root->l = new BVHNode(best_l, start, prims_lower.size());
-  root->r = new BVHNode(best_r, start + prims_lower.size(), prims_upper.size());
-
-
-  split_bvhnode(root->l, max_leaf_size, prims);
-  split_bvhnode(root->r, max_leaf_size, prims);
-
+  if (bestCost == INF_D) {
+    for (int i = 0; i < node->range; i++) {
+      if (i < node->range / 2) binAssignments.push_back(0);
+      else binAssignments.push_back(1);
+      plane = 1;
+    }
+  }
+  //perform split
+  //rearrange primitives
+  int i = 0, j = node->range - 1;
+  BBox lbox, rbox;
+  while (i < j) {
+    while (binAssignments[i] < plane && i <= j)
+      lbox.expand(primitives[node->start + i++]->get_bbox());
+    while (binAssignments[j] >= plane && j >= i)
+      rbox.expand(primitives[node->start + j--]->get_bbox());
+    if (i < j) {
+      Primitive *tmp = primitives[node->start + i];
+      primitives[node->start + i] = primitives[node->start + j];
+      primitives[node->start + j] = tmp;
+      int tmpBin = binAssignments[i];
+      binAssignments[i] = binAssignments[j];
+      binAssignments[j] = tmpBin;
+    }
+  }
+  //create child nodes
+  node->l = new BVHNode(lbox, node->start, i);
+  node->r = new BVHNode(rbox, i + node->start, node->range - i);
+  splitNode(node->l, maxLeafSize);
+  splitNode(node->r, maxLeafSize);
 }
 
 BVHAccel::BVHAccel(const std::vector<Primitive *> &_primitives,
                    size_t max_leaf_size) {
-
-  // TODO:
-  // Construct a BVH from the given vector of primitives and maximum leaf
-  // size configuration. The starter code build a BVH aggregate with a
-  // single leaf node (which is also the root) that encloses all the
-  // primitives.
-
-  std::vector<Primitive*> prims = _primitives;
-
+  this->primitives = _primitives;
   BBox bb;
-  for (size_t i = 0; i < prims.size(); ++i) {
-    bb.expand(prims[i]->get_bbox());
+  for (size_t i = 0; i < primitives.size(); i++) {
+    bb.expand(primitives[i]->get_bbox());
   }
-
-  root = new BVHNode(bb, 0, prims.size());
-  split_bvhnode(root, max_leaf_size, prims);
-
-  this->primitives = prims;
-
+  root = new BVHNode(bb, 0, primitives.size());
+  splitNode(root, max_leaf_size);
 }
 
-void destroyBVHNode(BVHNode *root) {
-  if (root->l != NULL) destroyBVHNode(root->l);
-  if (root->r != NULL) destroyBVHNode(root->r);
-  delete root;
+void destroyBVHNode(BVHNode *node) {
+  if (node->l) destroyBVHNode(node->l);
+  if (node->r) destroyBVHNode(node->r);
+  delete node;
 }
 
 BVHAccel::~BVHAccel() {
@@ -136,21 +216,6 @@ BBox BVHAccel::get_bbox() const {
   return root->bb;
 }
 
-bool bvhNodeIntersect(BVHNode *b, const Ray &ray, std::vector<Primitive*> prims) {
-  double t1, t2;
-  if (!b->bb.intersect(ray, t1,t2)) return false;
-  if (b->l == NULL && b->r == NULL) {
-    int end = b->start + b->range;
-    bool hit = false;
-    for (int i=b->start;i<end;i++) {
-      hit = hit || prims[i]->intersect(ray);
-    }
-    return hit;
-  } else {
-    return bvhNodeIntersect(b->l, ray, prims) || bvhNodeIntersect(b->r, ray, prims);
-  }
-}
-
 bool BVHAccel::intersect(const Ray &ray) const {
 
   // TODO:
@@ -158,46 +223,35 @@ bool BVHAccel::intersect(const Ray &ray) const {
   // with a BVH aggregate if and only if it intersects a primitive in
   // the BVH that is not an aggregate.
 
-  return bvhNodeIntersect(root, ray, primitives);
-
+  Intersection i;
+  return intersect(ray, &i);
 }
 
-
-int glob_i = 0;
-
-bool bvhIntersect(BVHNode *b, const Ray &ray, std::vector<Primitive*> prims, Intersection *i) {
-  glob_i++;
-  double t1 = std::numeric_limits<double>::infinity(), t2 = 0;
-  if (!b->bb.intersect(ray, t1, t2)) return false;
-  if (b->l == NULL && b->r == NULL) {
-    int end = b->start + b->range;
-    bool hit = false;
-    for (int j=b->start;j<end;j++) {
-      if (prims[j]->intersect(ray, i)) {
-        hit = 1;
-        ray.max_t = i->t;
-      }
+bool BVHAccel::intersectNode(BVHNode *node, const Ray &ray, Intersection *i) const {
+  bool hit = false;
+  if (node->isLeaf()) {
+    for (int n = node->start; n < node->start + node->range; n++) {
+      if (primitives[n]->intersect(ray, i)) hit = true;
     }
     return hit;
-  } else {
-    double lt1 = std::numeric_limits<double>::infinity(), lt2 = 0;
-    double rt1 = lt1, rt2 = lt2;
-    bool hit1 = false, hit2 = false;
-    bool hitL = b->l->bb.intersect(ray, lt1, lt2);
-    bool hitR = b->r->bb.intersect(ray, rt1, rt2);
-    if (lt1 > i->t && rt1 > i->t) return false;
-    if (!(hitL || hitR)) return false;
-    if (lt1 < rt1) {
-      hit1 = bvhIntersect(b->l, ray, prims, i);
-      if (i->t > rt1 && hitR) hit2 = bvhIntersect(b->r, ray, prims, i);
-      return hit1 || hit2;
-    } else {
-      hit1 = bvhIntersect(b->r, ray, prims, i);
-      if (i->t > lt1 && hitL) hit2 = bvhIntersect(b->l, ray, prims, i);
-      return hit1 || hit2;
-    }
-
   }
+  double minTL = ray.min_t, minTR = ray.min_t;
+  double maxTL = ray.max_t, maxTR = ray.max_t;
+  bool hitL = node->l->bb.intersect(ray, minTL, maxTL);
+  bool hitR = node->r->bb.intersect(ray, minTR, maxTR);
+  BVHNode *first, *second;
+  bool hitFirst, hitSecond;
+  double minTS;
+  if (minTL < minTR) {
+    first = node->l; second = node->r; hitFirst = hitL; hitSecond = hitR; minTS = minTR;
+  } else {
+    first = node->r; second = node->l; hitFirst = hitR; hitSecond = hitL; minTS = minTL;
+  }
+
+  if (hitFirst && intersectNode(first, ray, i)) hit = true;
+  if (hitSecond && minTS < ray.max_t && intersectNode(second, ray, i)) hit = true;
+  
+  return hit;
 }
 
 bool BVHAccel::intersect(const Ray &ray, Intersection *i) const {
@@ -209,8 +263,8 @@ bool BVHAccel::intersect(const Ray &ray, Intersection *i) const {
   // You should store the non-aggregate primitive in the intersection data
   // and not the BVH aggregate itself.
   //
-//  bool hit = bvhIntersect(root, ray, primitives, i);
-  return bvhIntersect(root, ray, primitives, i);
+
+  return intersectNode(root, ray, i);
 }
 
 }  // namespace StaticScene

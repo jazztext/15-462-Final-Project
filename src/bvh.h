@@ -67,6 +67,7 @@ class BVHAccel : public Aggregate {
    * \return world space bounding box of the aggregate
    */
   BBox get_bbox() const;
+  void splitNode(BVHNode *node, int maxLeafSize);
 
   /**
    * Ray - Aggregate intersection.
@@ -91,6 +92,7 @@ class BVHAccel : public Aggregate {
    * \return true if the given ray intersects with the aggregate,
              false otherwise
    */
+  bool intersectNode(BVHNode *node, const Ray& ray, Intersection *i) const;
   bool intersect(const Ray& r, Intersection* i) const;
 
   /**
