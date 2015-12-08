@@ -92,9 +92,12 @@ class Application : public Renderer {
   enum Mode {
     EDIT_MODE,
     RENDER_MODE,
+    ANIMATION_MODE,
     VISUALIZE_MODE
   };
   Mode mode;
+
+  bool running;
 
   void to_edit_mode();
   void set_up_pathtracer();

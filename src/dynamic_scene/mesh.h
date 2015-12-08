@@ -65,12 +65,15 @@ class Mesh : public SceneObject, public MeshView {
   StaticScene::SceneObject *get_static_object();
 
   // MeshView methods
+  void drag_selection_normal(float dx, float dy, const Matrix4x4& worldTo3DH);
   void collapse_selected_edge();
   void flip_selected_edge();
   void split_selected_edge();
   void upsample();
   void downsample();
   void resample();
+  void init_animation();
+  void animate();
 
  private:
 

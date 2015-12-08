@@ -81,6 +81,13 @@ void Scene::drag_selection(float dx, float dy, const Matrix4x4& worldTo3DH) {
   objects[selectionIdx]->drag_selection(dx, dy, worldTo3DH);
 }
 
+void Scene::drag_selection_normal(float dx, float dy,
+                                  const Matrix4x4& worldTo3DH) {
+  MeshView *selection = get_selection_as_mesh();
+  if (selection == nullptr) return;
+  selection->drag_selection_normal(dx, dy, worldTo3DH);
+}
+
 SelectionInfo *Scene::get_selection_info() {
   if (!has_selection()) return nullptr;
   selectionInfo.info.clear();
@@ -128,6 +135,22 @@ void Scene::resample_selected_mesh() {
   if (meshView == nullptr) return;
   meshView->resample();
   invalidate_selection();
+}
+
+void Scene::init_animation() {
+  for (SceneObject *obj : objects) {
+    MeshView *mesh = obj->get_mesh_view();
+    if (mesh == nullptr) continue;
+    mesh->init_animation();
+  }
+}
+
+void Scene::animate() {
+  for (SceneObject *obj : objects) {
+    MeshView *mesh = obj->get_mesh_view();
+    if (mesh == nullptr) continue;
+    mesh->animate();
+  }
 }
 
 StaticScene::Scene *Scene::get_static_scene() {

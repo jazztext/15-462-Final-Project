@@ -136,6 +136,12 @@ void Application::render() {
       scene->render_in_opengl();
       if (show_hud) draw_hud();
       break;
+    case ANIMATION_MODE:
+      if (show_coordinates) draw_coordinates();
+      if (running) scene->animate();
+      scene->render_in_opengl();
+      if (show_hud) draw_hud();
+      break;
     case VISUALIZE_MODE:
       if (show_coordinates) draw_coordinates();
     case RENDER_MODE:
@@ -196,6 +202,9 @@ string Application::info() {
   switch (mode) {
     case EDIT_MODE:
       return "MeshEdit";
+      break;
+    case ANIMATION_MODE:
+      return "Animator";
       break;
     case RENDER_MODE:
     case VISUALIZE_MODE:
@@ -359,6 +368,7 @@ void Application::scroll_event(float offset_x, float offset_y) {
   update_style();
 
   switch(mode) {
+    case ANIMATION_MODE:
     case EDIT_MODE:
     case VISUALIZE_MODE:
       camera.move_forward(-offset_y * scroll_rate);
@@ -404,6 +414,11 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
     case RENDER_MODE:
       if (event == EVENT_PRESS) {
         switch (key) {
+        case 'a': case 'A':
+          mode = ANIMATION_MODE;
+          running = false;
+          scene->init_animation();
+          break;
         case 'e': case 'E':
             to_edit_mode();
             break;
@@ -434,6 +449,11 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
       case VISUALIZE_MODE:
         if (event == EVENT_PRESS) {
         switch(key) {
+          case 'a': case 'A':
+            mode = ANIMATION_MODE;
+            running = false;
+            scene->init_animation();
+            break;
           case 'e': case 'E':
             to_edit_mode();
             break;
@@ -450,9 +470,34 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
         }
       }
       break;
+    case ANIMATION_MODE:
+      if (event == EVENT_PRESS) {
+        switch(key) {
+          case 'e': case 'E':
+            to_edit_mode();
+            break;
+          case 'r': case 'R':
+            pathtracer->stop();
+            pathtracer->start_raytracing();
+            mode = RENDER_MODE;
+            break;
+          case ' ':
+            reset_camera();
+            break;
+          case 's': case 'S':
+            running = !running;
+            break;
+        }
+      }
+      break;
     case EDIT_MODE:
       if (event == EVENT_PRESS) {
         switch(key) {
+          case 'a': case 'A':
+            mode = ANIMATION_MODE;
+            running = false;
+            scene->init_animation();
+            break;
           case 'r': case 'R':
             set_up_pathtracer();
             pathtracer->start_raytracing();
@@ -499,7 +544,7 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
 void Application::mouse_pressed(e_mouse_button b) {
   switch (b) {
     case LEFT:
-      if (mode == EDIT_MODE) {
+      if (mode == EDIT_MODE || mode == ANIMATION_MODE) {
         if (scene->has_hover()) {
           scene->confirm_selection();
         } else {
@@ -542,10 +587,15 @@ void Application::mouse1_dragged(float x, float y) {
   float dx = (x - mouseX);
   float dy = (y - mouseY);
 
-  if (mode == EDIT_MODE && scene->has_selection()) {
+  if (mode == ANIMATION_MODE && scene->has_selection()) {
+    scene->drag_selection_normal(2 * dx / screenW, 2 * -dy / screenH,
+                                 get_world_to_3DH());
+  }
+  else if (mode == EDIT_MODE && scene->has_selection()) {
     scene->drag_selection(2 * dx / screenW, 2 * -dy / screenH,
                           get_world_to_3DH());
-  } else {
+  }
+  else {
     camera.rotate_by(dy * (PI / screenH), dx * (PI / screenW));
   }
 }
@@ -563,7 +613,7 @@ void Application::mouse2_dragged(float x, float y) {
 }
 
 void Application::mouse_moved(float x, float y) {
-  if (mode != EDIT_MODE) return;
+  if (mode != EDIT_MODE && mode != ANIMATION_MODE) return;
   y = screenH - y; // Because up is down.
   // Converts x from [0, w] to [-1, 1], and similarly for y.
   Vector2D p(x * 2 / screenW - 1, y * 2 / screenH - 1);

@@ -78,7 +78,7 @@ class SceneObject {
    * Otherwise the behavior is undefined.
    */
   virtual void confirm_select() = 0;
-  
+
   /**
    * Sets this object as not having any hovered elements.
    */
@@ -193,6 +193,8 @@ class Scene {
    */
   void drag_selection(float dx, float dy, const Matrix4x4& worldTo3DH);
 
+  void drag_selection_normal(float dx, float dy, const Matrix4x4& worldTo3DH);
+
   /**
    * Returns information about the given selection, or nullptr if there is none.
    * Note that this object is still owned by the Scene, so it is invalidated on
@@ -207,6 +209,9 @@ class Scene {
   void upsample_selected_mesh();
   void downsample_selected_mesh();
   void resample_selected_mesh();
+
+  void init_animation();
+  void animate();
 
   /**
    * Builds a static scene that's equivalent to the current scene and is easier

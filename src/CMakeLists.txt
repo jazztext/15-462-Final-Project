@@ -26,6 +26,7 @@ set(APPLICATION_SOURCE
     # MeshEdit
     halfEdgeMesh.cpp
     meshEdit.cpp
+    meshDynamics.cpp
 
     # PathTracer
     bvh.cpp

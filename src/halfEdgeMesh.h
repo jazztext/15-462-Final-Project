@@ -145,6 +145,8 @@
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Sparse>
 
 #include "CMU462/CMU462.h"  // Standard 462 Vectors, etc.
 
@@ -361,6 +363,8 @@ class Halfedge : public HalfedgeElement {
     _face = face;
   }
 
+  double cot();
+
  protected:
   HalfedgeIter _twin;  ///< halfedge on the "other side" of the edge
   HalfedgeIter _next;  ///< next halfedge around the current face
@@ -413,6 +417,8 @@ class Face : public HalfedgeElement {
    */
   bool isBoundary(void) { return _isBoundary; }
 
+  double area();
+
   /**
    * Get a unit face normal (computed via the area vector).
    * \returns a unit face normal (computed via the area vector).
@@ -441,7 +447,12 @@ class Vertex : public HalfedgeElement {
    */
   HalfedgeCIter halfedge(void) const { return _halfedge; }
 
+  //Index into vertex list, needed for mesh dynamics calculations
+  int index;
+
   Vector3D position;  ///< vertex position
+
+  Vector3D initialPosition;
 
   /**
    * For Loop subdivision, this will be the updated position of the vertex
@@ -502,7 +513,7 @@ class Vertex : public HalfedgeElement {
          Vector3D pk = h->next()->next()->vertex()->position;
          normal += cross( pj-pi, pk-pi );
          h = h->next()->twin();
-      } while( h != halfedge() );      
+      } while( h != halfedge() );
     } else {
       do {
          Vector3D pj = h->next()->vertex()->position;
@@ -519,6 +530,7 @@ class Vertex : public HalfedgeElement {
    * Vertex normal
    */
   Vector3D normal;
+  Vector3D initialNormal;
 
   // TODO : add texcoord support
   // Complex texcoord;  ///< vertex texture coordinate
@@ -567,6 +579,8 @@ class Vertex : public HalfedgeElement {
   }
 
   Matrix4x4 quadric;
+
+  double dualArea();
 
  protected:
 
@@ -767,6 +781,26 @@ class HalfedgeMesh {
    */
   VertexIter collapseEdge(EdgeIter e);
 
+
+  //should be run whenever the mesh connectivity changes
+  void indexVertices();
+
+  //builds the matrix form of the laplacian for the mesh. Should be run again
+  //any time the mesh is altered
+  Eigen::SparseMatrix<double> laplacian();
+
+  void initWaveEquation(double dt, double c);
+
+  void stepWaveEquation();
+
+  void initVCF(double dt, double gamma);
+
+  void stepVCF();
+
+  //outputs of mesh dynamics calculations
+  Eigen::VectorXd displacements, vels;
+  Eigen::MatrixXd positions;
+
  protected:
 
   /*
@@ -778,6 +812,9 @@ class HalfedgeMesh {
   list<Edge> edges;
   list<Face> faces;
   list<Face> boundaries;
+
+  double _dt, _c, _gamma;
+  Eigen::SparseMatrix<double> _L;
 
 };  // class HalfedgeMesh
 

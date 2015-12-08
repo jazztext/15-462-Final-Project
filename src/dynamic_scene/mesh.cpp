@@ -26,7 +26,7 @@ Mesh::Mesh(Collada::PolymeshInfo& polyMesh, const Matrix4x4& transform) {
     vertices[i] = (transform * Vector4D(vertices[i], 1)).projectTo3D();
   }
 
-  mesh.build(polygons, vertices);  
+  mesh.build(polygons, vertices);
   if (polyMesh.material) {
     bsdf = polyMesh.material->bsdf;
   } else {
@@ -362,6 +362,43 @@ void Mesh::drag_selection(float dx, float dy, const Matrix4x4& worldTo3DH) {
   v->position = pos.to3D();
 }
 
+void Mesh::drag_selection_normal(float dx, float dy,
+                                 const Matrix4x4& worldTo3DH) {
+  // Get selection as a 4D vector.
+  if (!selectedFeature.isValid()) {
+    return;
+  }
+  Vertex *v = selectedFeature.element->getVertex();
+  if (v == nullptr) {
+    return;
+  }
+  Vector4D pos(v->position, 1.0);
+  Vector4D norm(v->initialNormal, 0);
+
+  // Translate to unit cube.
+  pos = worldTo3DH * pos;
+  norm = worldTo3DH * norm;
+  double w = pos.w;
+  pos /= w;
+
+  // Shift by (dx, dy) projected onto the normal
+  double proj = dx * norm.x + dy * norm.y;
+  mesh.displacements[v->index] += proj;
+  v->position = v->initialPosition + mesh.displacements[v->index] *
+                                     v->initialNormal;
+  v->computeNormal();
+}
+
+void Mesh::init_animation()
+{
+  mesh.initWaveEquation(.1, 5);
+}
+
+void Mesh::animate()
+{
+  mesh.stepWaveEquation();
+}
+
 void Mesh::collapse_selected_edge() {
   HalfedgeElement *element = selectedFeature.element;
   if (element == nullptr) return;
@@ -403,7 +440,6 @@ void Mesh::resample() {
   resampler.resample(mesh);
   invalidate_selection();
 }
-
 
 double Mesh::triangle_selection_test_4d(const Vector2D& p, const Vector4D& A,
                                         const Vector4D& B, const Vector4D& C,

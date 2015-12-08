@@ -21,6 +21,11 @@ class MeshView {
   virtual void upsample() = 0;
   virtual void downsample() = 0;
   virtual void resample() = 0;
+  virtual void drag_selection_normal(float dx, float dy,
+                                     const Matrix4x4& worldTo3DH) = 0;
+  virtual void init_animation() = 0;
+  virtual void animate() = 0;
+
 };
 
 } // namespace DynamicScene
