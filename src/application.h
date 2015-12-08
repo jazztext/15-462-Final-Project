@@ -97,7 +97,8 @@ class Application : public Renderer {
   };
   Mode mode;
 
-  bool running;
+  bool running, rendering;
+  int frame;
 
   void to_edit_mode();
   void set_up_pathtracer();
