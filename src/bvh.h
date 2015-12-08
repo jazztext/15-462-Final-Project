@@ -5,9 +5,16 @@
 #include "static_scene/aggregate.h"
 
 #include <vector>
+#include <list>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <set>
 
 namespace CMU462 { namespace StaticScene {
 
+typedef float red_func(float);
+typedef std::pair<unsigned int, Primitive *> MortonPt;
 
 /**
  * A node in the BVH accelerator aggregate.
@@ -33,6 +40,38 @@ struct BVHNode {
   BVHNode* r;     ///< right child node
 };
 
+class LBVHNode {
+  public:
+    LBVHNode() { }
+    //LBVHNode(BBox bb) : bb(bb) { }
+    //LBVHNode(std::vector<Primitive *> L) { }   
+    ~LBVHNode() { } 
+
+    BBox bb;
+    bool isLeaf;
+    int count;
+    int start;
+  
+};
+
+class LBVHLeaf : public LBVHNode {
+  public:
+    LBVHLeaf(std::list<Primitive *>*);
+    std::list<Primitive *> *L;
+    
+};
+
+class LBVHParent : public LBVHNode {
+  public:
+    LBVHParent(LBVHNode*, LBVHNode*);
+    LBVHNode *r, *l;
+
+};
+    
+
+
+typedef struct LBVHNode *Cluster;
+
 /**
  * Bounding Volume Hierarchy for fast Ray - Primitive intersection.
  * Note that the BVHAccel is an Aggregate (A Primitive itself) that contains
@@ -43,7 +82,7 @@ struct BVHNode {
 class BVHAccel : public Aggregate {
  public:
 
-  BVHAccel () { }
+//  BVHAccel () { }
 
   /**
    * Parameterized Constructor.
@@ -53,7 +92,7 @@ class BVHAccel : public Aggregate {
    * \param primitives primitives to build from
    * \param max_leaf_size maximum number of primitives to be stored in leaves
    */
-  BVHAccel(const std::vector<Primitive*>& primitives, size_t max_leaf_size = 4);
+  BVHAccel(const std::vector<Primitive*>& primitives, size_t max_leaf_size = 4, size_t num_threads = 1);
 
   /**
    * Destructor.
@@ -67,6 +106,16 @@ class BVHAccel : public Aggregate {
    * \return world space bounding box of the aggregate
    */
   BBox get_bbox() const;
+  std::vector<Cluster>* combineClusters(std::vector<Cluster> *C, int n, int maxLeafSize);
+  std::vector<Cluster>* buildTree(std::vector<int>&, int, int, int, int, red_func f);
+
+  Cluster makeBvhAAC(int maxLeafSize, red_func f);
+  BVHNode *rebuildBVH_single(Cluster c, int start);
+  BVHNode *rebuildBVH_threads(Cluster c, int start);
+
+  size_t numThreads;
+  std::atomic<int> runningThreads;
+  std::mutex lock;
 
   /**
    * Ray - Aggregate intersection.
@@ -91,6 +140,7 @@ class BVHAccel : public Aggregate {
    * \return true if the given ray intersects with the aggregate,
              false otherwise
    */
+  bool intersectNode(BVHNode *node, const Ray& ray, Intersection *i) const;
   bool intersect(const Ray& r, Intersection* i) const;
 
   /**

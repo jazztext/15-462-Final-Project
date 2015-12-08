@@ -236,7 +236,7 @@ void PathTracer::build_accel() {
   // build BVH //
   fprintf(stdout, "[PathTracer] Building BVH... "); fflush(stdout);
   timer.start();
-  bvh = new BVHAccel(primitives);
+  bvh = new BVHAccel(primitives, 4, numWorkerThreads);
   timer.stop();
   fprintf(stdout, "Done! (%.4f sec)\n", timer.duration());
 
