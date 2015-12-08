@@ -9,61 +9,300 @@
 using namespace std;
 
 namespace CMU462 { namespace StaticScene {
-// @TODO: clean this up
-unsigned int morton3D(Vector3D);
-typedef float red_func(float);
-typedef std::pair<unsigned int, Vector3D> morton_pt;
 
-float aac_reduce(float x) {
-  return 0.6*pow(x, 0.6);
+
+unsigned int morton3D(Vector3D);
+typedef std::vector<Cluster> ClusterList;
+
+
+float eps = 0.1;
+
+/* Function must return a value between 0 and x. (lower -> quicker evaluation, lower quality BVH) */
+float aacReduce(float x) {
+  return pow(x, 0.5 - eps)*pow(4, eps);
 }
 
-/*
+double distance(Cluster A, Cluster B) {
+  BBox tmp = BBox();
+  tmp.expand(A->bb);
+  tmp.expand(B->bb);
+  return tmp.surface_area();
+}
 
-BVHNode *build_tree(std::vector<Primitive*> &prims, int start, int end, int leaf_prims, red_func f) {
-  if (prims.size() < leaf_prims) {
-    BVHNode *root = BVHNode(start, end - start, 
-*/
+Cluster findBestMatch(std::list<std::pair<Cluster,Cluster>> C, Cluster target) {
+  double bestD = INF_D;
+  Cluster bestC = NULL;
+  for (auto x = C.begin(); x != C.end(); x++) {
+    if (x->first == target) continue;
+    double dist = distance(x->first, target);
+    if (dist < bestD) {
+      bestD = dist;
+      bestC = x->first;
+    }
+  }
+  return bestC;
+}
+
+
+/* Combine all the clusters in clusters into n clusters */
+ClusterList *BVHAccel::combineClusters(ClusterList *clusters, int n, int maxLeafSize) {
+  if (clusters->size() <= n) {
+    return clusters;
+  }
+
+  /* Consider using 2 lists and managing those (?) */
+  std::list<std::pair<Cluster,Cluster>> C;
+  C.resize(clusters->size());
+  int m = clusters->size();
+  std::vector<std::vector<double>> dists;
+  dists.resize(m);
+  for (int i = 0; i < m; i++) dists[i].resize(i);
+
+  int i = 0;
+  for (auto x = clusters->begin(); x != clusters->end(); x++) {
+    int j = 0;
+    for (auto y = clusters->begin(); y != x; y++) {
+      dists[i][j] = distance(*x, *y);
+      j++;
+    }
+    i++;
+  }
+
+
+  i = 0;
+  auto cIter = C.begin();
+  for (auto x = clusters->begin(); x != clusters->end(); x++) {
+    int j = 0;
+    double best = INF_D;
+    for (auto y = clusters->begin(); y != clusters->end(); y++) {
+      if (i != j) {
+        double dist = dists[std::max(i,j)][std::min(i,j)];
+        if (dist < best) {
+          best = dist;
+          *cIter = std::pair<Cluster,Cluster>(*x, *y);
+        }
+      }
+      j++;
+    }
+
+    i++;
+    cIter++;
+  } 
+ 
+ 
+
+  while (C.size() > n) {
+    double best = INF_D;
+    Cluster L, R;
+    for (auto x = C.begin(); x != C.end(); x++) { 
+      double dist = distance(x->first, x->second);
+      if (dist < best) {
+        best = dist;
+        L = x->first; R = x->second;
+      }
+    }
+    
+    Cluster newC;
+    if (L->count + R->count <= maxLeafSize) {
+      LBVHLeaf *LL = (LBVHLeaf*)L;
+      LBVHLeaf *RR = (LBVHLeaf*)R;
+      LL->L->splice(LL->L->end(), *(RR->L));
+      newC = new LBVHLeaf(LL->L);
+      leafLock.lock();
+      leaves.insert(newC);
+      leaves.erase(L); 
+      leaves.erase(R);
+      leafLock.unlock();
+    } else {
+      newC = new LBVHParent(L, R);
+    }
+
+    auto P = [&](std::pair<Cluster,Cluster> x) { return x.first == L || x.first == R; };
+    C.remove_if(P);
+    C.push_back(std::pair<Cluster,Cluster>(newC, findBestMatch(C, newC)));
+ 
+    for (auto x = C.begin(); x != C.end(); x++) {
+      if (x->second == L || x->second == R) {
+        x->second = findBestMatch(C, x->first);
+      }
+    }   
+  }
+ 
+  std::vector<Cluster> *out = new std::vector<Cluster>();
+  for (auto x = C.begin(); x != C.end(); x++) {
+    out->push_back(x->first);
+  }
+  return out; 
+}
+
+/* Returns a list of BVH trees that span primitives[start..end) */
+ClusterList* BVHAccel::buildTree(std::vector<int>& M, int start, int end, int maxLeafSize, int bitPos, red_func f) {
+
+  /* Base case */
+  if (end - start <= maxLeafSize) {
+    std::vector<Cluster> *C = new std::vector<Cluster>();
+    for (int i = start; i < end; i++) {
+      LBVHLeaf *tmp = new LBVHLeaf(new std::list<Primitive*>(1, primitives[i]));
+      C->push_back(tmp);
+      leafLock.lock();
+      leaves.insert(tmp);
+      leafLock.unlock();
+    }
+    return combineClusters(C, f(maxLeafSize), maxLeafSize);
+  }
+ 
+  /* Binary search for the split where M[i] & (1 << bitPos) becomes 1 */
+  int split = (start + end) / 2;
+  int mask = 1 << bitPos;
+  int endTmp = end, startTmp = start;
+  while (startTmp <= endTmp && bitPos >= 0) {
+    if (split == start || split == end - 1) {
+      split = (start + end) / 2;
+      break;
+    }
+    else if (M[split] & mask) startTmp = split + 1;
+    else endTmp = split - 1;
+    split = (startTmp + endTmp) / 2;
+  }
+
+
+  ClusterList *pL, *pR;
+  if (numThreads > 1) {
+    /* Multithreaded tree building */
+    std::thread tL, tR;
+    bool threadL = false, threadR = false;
+
+    auto runL = [&]{pL = buildTree(M, start, split, maxLeafSize, bitPos - 1, f); };
+    auto runR = [&]{pR = buildTree(M, split, end, maxLeafSize, bitPos - 1, f); };
+
+    int threads;
+
+    lock.lock();
+    if (runningThreads.load() < numThreads) {
+      runningThreads.store(runningThreads+1);
+      lock.unlock();
+      threadL = true;
+      tL = std::thread(runL);
+    } else {
+      lock.unlock();
+      runL();
+    }
+
+
+    lock.lock();
+    if (runningThreads.load() < numThreads) {
+      runningThreads.store(runningThreads+1);
+      lock.unlock();
+      threadR = true;
+      tR = std::thread(runR);
+    } else {
+      lock.unlock();
+      runR();
+    }
+
+    /* Thread cleanup */
+    if (threadL) {
+      tL.join();
+      lock.lock();
+      runningThreads.store(runningThreads-1);
+      lock.unlock();
+    }
+    if (threadR) {
+      tR.join();
+      lock.lock();
+      runningThreads.store(runningThreads-1);
+      lock.unlock();
+    }
+  } else {
+    /* Single-threaded */
+    pL = buildTree(M, start, split, maxLeafSize, bitPos - 1, f);
+    pR = buildTree(M, split, end, maxLeafSize, bitPos - 1, f);
+  }
+
+  /* Combine lists of clusters */
+  pL->insert(pL->end(), pR->begin(), pR->end());
+
+  return combineClusters(pL, f(end - start), maxLeafSize);
+}
+
+/* LBVH Initializers */
+
+LBVHLeaf::LBVHLeaf(std::list<Primitive *> *L) {
+  this->count = L->size();
+  this->L = L;
+  this->bb = BBox();
+  for (auto x = L->begin(); x != L->end(); x++) {
+    this->bb.expand((*x)->get_bbox());
+  }
+  this->isLeaf = true;
+}
+
+LBVHParent::LBVHParent(LBVHNode *L, LBVHNode *R) {
+  this->l = L;
+  this->r = R;
+  this->bb = BBox();
+  this->bb.expand(L->bb);
+  this->bb.expand(R->bb);
+  this->isLeaf = false;
+  this->count = L->count + R->count;
+}
+
+
+
+/* End LBVH Initializers */
+
+
 
 /* Stuff for highest-level BVH function (AAC in paper) */
 
 
-bool pair_cmp(morton_pt &p1, morton_pt &p2) {
-  if (p1.first < p2.first) return -1;
-  else if (p1.first == p2.first) return 0;
-  return 1;
+bool pair_cmp(MortonPt &p1, MortonPt &p2) {
+  return p1.first < p2.first;
 }
   
 
-BVHNode *make_bvh_aac(std::vector<Primitive*> &prims, int leaf_prims, red_func f) {
+Cluster BVHAccel::makeBvhAAC(int maxLeafSize, red_func f) {
   std::vector<Vector3D> centroids;
-  int n = prims.size();
+  int n = primitives.size();
   centroids.resize(n);
   BBox total = BBox();
   for (int i = 0; i < n; i++) {
-    BBox tmp = prims[i]->get_bbox();
+    BBox tmp = primitives[i]->get_bbox();
     total.expand(tmp);
     centroids[i] = (tmp.max + tmp.min) / 2.0;
   }
   Vector3D span = total.max - total.min;
   Vector3D span_inv = Vector3D(1.0 / span[0], 1.0 / span[1], 1.0 / span[2]);
-  Vector3D adj = Vector3D(total.min[0]*span_inv[0],total.min[1]*span_inv[1],total.min[2]*span_inv[2]);
+  Vector3D adj = Vector3D(total.min[0] * span_inv[0],
+                          total.min[1] * span_inv[1],
+                          total.min[2] * span_inv[2]);
   for (int i = 0; i < n; i++) {
     centroids[i][0] = centroids[i][0] * span_inv[0] - adj[0];
     centroids[i][1] = centroids[i][1] * span_inv[1] - adj[1];
     centroids[i][2] = centroids[i][2] * span_inv[2] - adj[2];
   }
-  std::vector<morton_pt> cent_zs;
+  std::vector<MortonPt> cent_zs;
   cent_zs.resize(n);
   for (int i = 0; i < n; i++) {
     cent_zs[i].first = morton3D(centroids[i]);
-    cent_zs[i].second = centroids[i];
+    cent_zs[i].second = primitives[i];
   }
 
-  // TODO: Maybe implement radix sort here?
-  std::sort(cent_zs.begin(), cent_zs.end(), pair_cmp); 
+  std::sort(cent_zs.begin(), cent_zs.end(), pair_cmp);
+
+  std::vector<int> M;
+  M.resize(cent_zs.size());
+  int bitPos = 256;
+  for (int i = 0; i < cent_zs.size(); i++) {
+    M[i] = cent_zs[i].first;
+    if (log2(M[i]) < bitPos) bitPos = log2(M[i]);
+    primitives[i] = cent_zs[i].second;
+  }
   
-  return NULL;
+  std::vector<Cluster> *C = buildTree(M, 0, cent_zs.size(), maxLeafSize, bitPos, f);
+
+  ClusterList *out = combineClusters(C, 1, maxLeafSize);
+  return (*out)[0];
 }
 
 /* This code copied from NVidia devblogs */
@@ -92,110 +331,94 @@ unsigned int morton3D(Vector3D v) {
 
 /* End NVidia code */
 
-double surfaceAreaCost(BVHNode *node, vector<BBox>& bboxes,
-                       vector<int>& primCounts, int bin, int numBins)
-{
-  double sn = node->bb.surface_area();
-  BBox bboxA, bboxB;
-  int na = 0, nb = 0;
-  for (int i = 0; i < numBins; i++) {
-    if (i < bin) {
-      bboxA.expand(bboxes[i]);
-      na += primCounts[i];
-    }
-    else {
-      bboxB.expand(bboxes[i]);
-      nb += primCounts[i];
-    }
+BVHNode *BVHAccel::rebuildBVH_single(Cluster c, int start) {
+  if (c->isLeaf) {
+    c->start = start;
+    return new BVHNode(c->bb, start, c->count);
+  } else {
+    LBVHParent *P = (LBVHParent*)c;
+    BVHNode *root = new BVHNode(c->bb, start, c->count);
+    root->l = rebuildBVH_single(P->l, start);
+    root->r = rebuildBVH_single(P->r, start + P->l->count);
+    return root;
   }
-  if (na == 0 || nb == 0) return INF_D;
-  return bboxA.surface_area() / sn * na + bboxB.surface_area() / sn * nb;
 }
 
-void BVHAccel::splitNode(BVHNode *node, int maxLeafSize) {
-  //base case
-  if (node->range <= maxLeafSize) {
-    return;
+BVHNode *BVHAccel::rebuildBVH_threads(Cluster c, int start) {
+  std::thread tL, tR;
+  bool threadL = false, threadR = false;
+  if (c->isLeaf) {
+    c->start = start;
+    return new BVHNode(c->bb, start, c->count);
+  } else {
+    LBVHParent *P = (LBVHParent*)c;
+    BVHNode *root = new BVHNode(c->bb, start, c->count);
+    lock.lock();
+    if (runningThreads.load() < numThreads) {
+      runningThreads.store(runningThreads+1);
+      lock.unlock();
+      threadL = true;
+      tL = std::thread([&]{root->l = rebuildBVH_threads(P->l, start);});
+    } else {
+      lock.unlock();
+      root->l = rebuildBVH_threads(P->l, start);
+    }
+    lock.lock();
+    if (runningThreads.load() < numThreads) {
+      runningThreads.store(runningThreads+1);
+      lock.unlock();
+      threadR = true;
+      tR = std::thread([&]{root->r = rebuildBVH_threads(P->r, start + P->l->count);});
+    } else {
+      lock.unlock();
+      root->r = rebuildBVH_threads(P->r, start + P->l->count);
+    }
+    if (threadL) {
+      tL.join();
+      lock.lock();
+      runningThreads.store(runningThreads-1);
+      lock.unlock();
+    }
+    if (threadR) {
+      tR.join();
+      lock.lock();
+      runningThreads.store(runningThreads-1);
+      lock.unlock();
+    }
+    return root;
   }
-  //choose plane to split along
-  double smallestBins = INF_D;
-  int numBins = 32;
-  vector<int> binAssignments;
-  int plane;
-  double bestCost = INF_D;
-  for (int n = 0; n < 3; n++) {
-    double start = INF_D, end = -INF_D;
-    for (int i = 0; i < node->range; i++) {
-      double p = primitives[node->start + i]->get_bbox().centroid()[n];
-      if (p < start) start = p;
-      if (p > end) end = p;
-    }
-    double binSize = (end - start) / numBins * 1.0001;
-    if (binSize == 0) {
-    }
-    else if (binSize > 0) {
-    vector<BBox> binBBoxes(numBins);
-    vector<int> binPrimCounts(numBins);
-    vector<int> currentBinAssignments(node->range);
-    for (unsigned i = 0; i < node->range; i++) {
-      BBox bbox = primitives[node->start + i]->get_bbox();
-      int bin = floor((bbox.centroid()[n] - start) / binSize);
-      binBBoxes[bin].expand(bbox);
-      binPrimCounts[bin]++;
-      currentBinAssignments[i] = bin;
-    }
-    for (int i = 1; i < numBins; i++) {
-      double cost = surfaceAreaCost(node, binBBoxes, binPrimCounts, i, numBins);
-      if (cost < bestCost) {
-        plane = i;
-        bestCost = cost;
-        binAssignments = currentBinAssignments;
-      }
-    }
-    if (binSize < smallestBins) smallestBins = binSize;
-    }
-  }
-  if (bestCost == INF_D) {
-    for (int i = 0; i < node->range; i++) {
-      if (i < node->range / 2) binAssignments.push_back(0);
-      else binAssignments.push_back(1);
-      plane = 1;
-    }
-  }
-  //perform split
-  //rearrange primitives
-  int i = 0, j = node->range - 1;
-  BBox lbox, rbox;
-  while (i < j) {
-    while (binAssignments[i] < plane && i <= j)
-      lbox.expand(primitives[node->start + i++]->get_bbox());
-    while (binAssignments[j] >= plane && j >= i)
-      rbox.expand(primitives[node->start + j--]->get_bbox());
-    if (i < j) {
-      Primitive *tmp = primitives[node->start + i];
-      primitives[node->start + i] = primitives[node->start + j];
-      primitives[node->start + j] = tmp;
-      int tmpBin = binAssignments[i];
-      binAssignments[i] = binAssignments[j];
-      binAssignments[j] = tmpBin;
-    }
-  }
-  //create child nodes
-  node->l = new BVHNode(lbox, node->start, i);
-  node->r = new BVHNode(rbox, i + node->start, node->range - i);
-  splitNode(node->l, maxLeafSize);
-  splitNode(node->r, maxLeafSize);
 }
 
 BVHAccel::BVHAccel(const std::vector<Primitive *> &_primitives,
-                   size_t max_leaf_size) {
+                   size_t max_leaf_size, size_t num_threads) {
+
   this->primitives = _primitives;
-  BBox bb;
-  for (size_t i = 0; i < primitives.size(); i++) {
-    bb.expand(primitives[i]->get_bbox());
+  this->numThreads = num_threads;
+  this->runningThreads = 1;
+  this->lock.unlock();
+  this->leafLock.unlock();
+  if (primitives.size() < max_leaf_size) {
+    BBox bb;
+    for (size_t i = 0; i < primitives.size(); i++) {
+      bb.expand(primitives[i]->get_bbox());
+    }
+    root = new BVHNode(bb, 0, primitives.size());
+  } else {
+    leaves = std::set<LBVHNode*>();
+    Cluster c = makeBvhAAC(max_leaf_size, aacReduce);
+    if (numThreads > 1) {
+      root = rebuildBVH_threads(c, 0);
+    } else {
+      root = rebuildBVH_single(c, 0);
+    }
+    for (auto x = leaves.begin(); x != leaves.end(); x++) {
+      LBVHLeaf *L = (LBVHLeaf*)(*x);
+      int i = L->start;
+      for (auto y = L->L->begin(); y != L->L->end(); y++) {
+        primitives[i++] = (*y);
+      }
+    }
   }
-  root = new BVHNode(bb, 0, primitives.size());
-  splitNode(root, max_leaf_size);
 }
 
 void destroyBVHNode(BVHNode *node) {
@@ -205,11 +428,7 @@ void destroyBVHNode(BVHNode *node) {
 }
 
 BVHAccel::~BVHAccel() {
-
-  // TODO:
-  // Implement a proper destructor for your BVH accelerator aggregate
   destroyBVHNode(this->root);
-
 }
 
 BBox BVHAccel::get_bbox() const {
@@ -217,12 +436,6 @@ BBox BVHAccel::get_bbox() const {
 }
 
 bool BVHAccel::intersect(const Ray &ray) const {
-
-  // TODO:
-  // Implement ray - bvh aggregate intersection test. A ray intersects
-  // with a BVH aggregate if and only if it intersects a primitive in
-  // the BVH that is not an aggregate.
-
   Intersection i;
   return intersect(ray, &i);
 }
@@ -255,14 +468,6 @@ bool BVHAccel::intersectNode(BVHNode *node, const Ray &ray, Intersection *i) con
 }
 
 bool BVHAccel::intersect(const Ray &ray, Intersection *i) const {
-
-  // TODO:
-  // Implement ray - bvh aggregate intersection test. A ray intersects
-  // with a BVH aggregate if and only if it intersects a primitive in
-  // the BVH that is not an aggregate. When an intersection does happen.
-  // You should store the non-aggregate primitive in the intersection data
-  // and not the BVH aggregate itself.
-  //
 
   return intersectNode(root, ray, i);
 }
