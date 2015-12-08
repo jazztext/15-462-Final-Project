@@ -108,11 +108,6 @@ ClusterList *BVHAccel::combineClusters(ClusterList *clusters, int n, int maxLeaf
       LBVHLeaf *RR = (LBVHLeaf*)R;
       LL->L->splice(LL->L->end(), *(RR->L));
       newC = new LBVHLeaf(LL->L);
-      leafLock.lock();
-      leaves.insert(newC);
-      leaves.erase(L); 
-      leaves.erase(R);
-      leafLock.unlock();
     } else {
       newC = new LBVHParent(L, R);
     }
@@ -144,9 +139,6 @@ ClusterList* BVHAccel::buildTree(std::vector<int>& M, int start, int end, int ma
     for (int i = start; i < end; i++) {
       LBVHLeaf *tmp = new LBVHLeaf(new std::list<Primitive*>(1, primitives[i]));
       C->push_back(tmp);
-      leafLock.lock();
-      leaves.insert(tmp);
-      leafLock.unlock();
     }
     return combineClusters(C, f(maxLeafSize), maxLeafSize);
   }
@@ -333,7 +325,11 @@ unsigned int morton3D(Vector3D v) {
 
 BVHNode *BVHAccel::rebuildBVH_single(Cluster c, int start) {
   if (c->isLeaf) {
-    c->start = start;
+    LBVHLeaf *L = (LBVHLeaf*)c;
+    int i = start;
+    for (auto x = L->L->begin(); x != L->L->end(); x++) {
+      primitives[i++] = (*x);
+    }
     return new BVHNode(c->bb, start, c->count);
   } else {
     LBVHParent *P = (LBVHParent*)c;
@@ -348,7 +344,11 @@ BVHNode *BVHAccel::rebuildBVH_threads(Cluster c, int start) {
   std::thread tL, tR;
   bool threadL = false, threadR = false;
   if (c->isLeaf) {
-    c->start = start;
+    LBVHLeaf *L = (LBVHLeaf*)c;
+    int i = start;
+    for (auto x = L->L->begin(); x != L->L->end(); x++) {
+      primitives[i++] = (*x);
+    }
     return new BVHNode(c->bb, start, c->count);
   } else {
     LBVHParent *P = (LBVHParent*)c;
@@ -396,7 +396,6 @@ BVHAccel::BVHAccel(const std::vector<Primitive *> &_primitives,
   this->numThreads = num_threads;
   this->runningThreads = 1;
   this->lock.unlock();
-  this->leafLock.unlock();
   if (primitives.size() < max_leaf_size) {
     BBox bb;
     for (size_t i = 0; i < primitives.size(); i++) {
@@ -404,19 +403,11 @@ BVHAccel::BVHAccel(const std::vector<Primitive *> &_primitives,
     }
     root = new BVHNode(bb, 0, primitives.size());
   } else {
-    leaves = std::set<LBVHNode*>();
     Cluster c = makeBvhAAC(max_leaf_size, aacReduce);
     if (numThreads > 1) {
       root = rebuildBVH_threads(c, 0);
     } else {
       root = rebuildBVH_single(c, 0);
-    }
-    for (auto x = leaves.begin(); x != leaves.end(); x++) {
-      LBVHLeaf *L = (LBVHLeaf*)(*x);
-      int i = L->start;
-      for (auto y = L->L->begin(); y != L->L->end(); y++) {
-        primitives[i++] = (*y);
-      }
     }
   }
 }

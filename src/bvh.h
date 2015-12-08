@@ -113,10 +113,9 @@ class BVHAccel : public Aggregate {
   BVHNode *rebuildBVH_single(Cluster c, int start);
   BVHNode *rebuildBVH_threads(Cluster c, int start);
 
-  std::set<LBVHNode*> leaves;
   size_t numThreads;
   std::atomic<int> runningThreads;
-  std::mutex lock, leafLock;
+  std::mutex lock;
 
   /**
    * Ray - Aggregate intersection.
