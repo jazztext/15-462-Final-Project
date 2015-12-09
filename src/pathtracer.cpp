@@ -490,14 +490,12 @@ Spectrum PathTracer::trace_ray(const Ray &r, bool includeLe = false) {
 
   L_out = L_out * scale;
 
-  // TODO:
-  // compute an indirect lighting estimate using pathtracing with Monte Carlo.
-  // Note that Ray objects have a depth field now; you should use this to avoid
-  // traveling down one path forever.
-  if (r.depth >= max_ray_depth) return L_out;
+  if (r.depth > max_ray_depth) return Spectrum();
+
   Vector3D w_i;
   float pdf2;
-  Spectrum s = isect.bsdf->sample_f(w_out, &w_i, &pdf2);
+  bool inMaterial = r.inMaterial;
+  Spectrum s = isect.bsdf->sample_f(w_out, &w_i, &pdf2, inMaterial);
   w_i = w2o.inv() * w_i;
   w_i.normalize();
   double killP = 1.f - s.illum();
@@ -506,7 +504,8 @@ Spectrum PathTracer::trace_ray(const Ray &r, bool includeLe = false) {
   Ray newR = Ray(hit_p + EPS_D*w_i, w_i);
   newR.depth = r.depth + 1;
   newR.min_t = 0.0;
-  newR.max_t = std::numeric_limits<double>::infinity();
+  newR.max_t = INF_D;
+  newR.inMaterial = inMaterial;
   return L_out + (scale * s * trace_ray(newR, isect.bsdf->is_delta()) * (fabs(dot(w_i, hit_n))  / (pdf2 * (1 - killP))));
 }
 

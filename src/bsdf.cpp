@@ -212,6 +212,8 @@ Spectrum WaterBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool&
   float n_i, n_t;
   float cosi = fabs(wo[2]);
   float sini = sqrt(1 - cosi*cosi);
+  
+  float factor = 1.0;
 
   if (inMat) { // exiting material
    n_i = this->ior;
@@ -231,9 +233,6 @@ Spectrum WaterBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool&
 
   if (UniformGridSampler2D().get_sample().x < Fr) { // reflect
     return glossy->sample_f(wo, wi, pdf, inMat);
-//    reflect(wo, wi);
-//    *pdf = 1;
-//    return (wo
   } else { // refract
     if (refract(wo, wi, this->ior, inMat)) {
       *pdf = 1;
@@ -245,9 +244,8 @@ Spectrum WaterBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool&
       return (wo[2]) ? (this->reflectance * (1.0 / fabs(wo[2]))) : Spectrum();
     }
   }
-
+ 
 }
-
 
 
 } // namespace CMU462
