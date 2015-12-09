@@ -35,7 +35,8 @@ Spectrum DiffuseBSDF::f(const Vector3D& wo, const Vector3D& wi) {
   return albedo * (1.0 / PI);
 }
 
-Spectrum DiffuseBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
+Spectrum DiffuseBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a) {
+  a = false;
   *wi = CosineWeightedHemisphereSampler3D().get_sample(pdf);
   return this->f(wo, *wi);
 }
@@ -46,11 +47,8 @@ Spectrum MirrorBSDF::f(const Vector3D& wo, const Vector3D& wi) {
   return Spectrum();
 }
 
-Spectrum MirrorBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
-
-  // TODO:
-  // Implement MirrorBSDF
-
+Spectrum MirrorBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a) {
+  a = false;
   reflect(wo, wi);
   *pdf = 1;
   return (wo[2]) ? (this->reflectance * (1.0 / wo[2])) : Spectrum();
@@ -58,16 +56,34 @@ Spectrum MirrorBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 
 // Glossy BSDF //
 
-/*
+
 Spectrum GlossyBSDF::f(const Vector3D& wo, const Vector3D& wi) {
+//  return reflectance * (1.0 / PI);
   return Spectrum();
 }
 
-Spectrum GlossyBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
-  *pdf = 1.0f;
-  return reflect(wo, wi, reflectance);
+Spectrum GlossyBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a) {
+  a = false;
+/*  reflect(wo, wi);
+  Vector3D w_perturb = roughness*CosineWeightedHemisphereSampler3D().get_sample(pdf);
+  while (w_perturb[2] < 0) w_perturb = roughness*CosineWeightedHemisphereSampler3D().get_sample(pdf);
+  (*wi) = (*wi) + w_perturb;
+  wi->normalize();
+  *pdf = (*pdf) * wi[2];
+  return reflectance; */
+  Vector3D w;
+  reflect(wo, &w);
+  Vector3D u = cross(Vector3D(0.00424, 1.0, 0.0076), w);
+  u.normalize();
+  Vector3D v = cross(u,w);
+//  Vector3D sp = UniformHemisphereSampler3D().get_sample();
+  Vector3D sp = CosineWeightedHemisphereSampler3D().get_sample(pdf);
+  *wi = roughness * (sp[0] * u + sp[1] * v) + sp[2] * w;
+  if ((*wi)[2] < 0) (*wi) = -(*wi);
+  wi->normalize();
+  //*pdf = ((roughness) ? (1.0 / PI) : 1.0);// * wo[2];
+  return reflectance * (*wi)[2];
 }
-*/
 
 // Refraction BSDF //
 
@@ -75,7 +91,7 @@ Spectrum RefractionBSDF::f(const Vector3D& wo, const Vector3D& wi) {
   return Spectrum();
 }
 
-Spectrum RefractionBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
+Spectrum RefractionBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a) {
 
   // TODO:
   // Implement RefractionBSDF
@@ -89,22 +105,18 @@ Spectrum GlassBSDF::f(const Vector3D& wo, const Vector3D& wi) {
   return Spectrum();
 }
 
-Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
-
-  // TODO:
-  // Compute Fresnel coefficient and either reflect or refract based on it.
-
-
+Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& inMat) {
+  
   float n_i, n_t;
   float cosi = fabs(wo[2]);
   float sini = sqrt(1 - cosi*cosi);
 
-  if (wo[2] > 0) { // entering material
-   n_i = 1.0;
-   n_t = this->ior;
-  } else { // exiting material 
+  if (inMat) { // exiting material
    n_i = this->ior;
    n_t = 1.0;
+  } else { // entering material 
+   n_i = 1.0;
+   n_t = this->ior;
   }
 
   float sint = sini * (n_i / n_t);
@@ -115,39 +127,29 @@ Spectrum GlassBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
 
   float Fr = ((r_par * r_par) + (r_prp * r_prp)) / 2.0;
 
-
-//  Fr = 0;
-
   if (UniformGridSampler2D().get_sample().x < Fr) { // reflect
     reflect(wo, wi);
     *pdf = 1;
     return (wo[2]) ? (this->reflectance * (1.0 /  fabs(wo[2]))) : Spectrum();
   } else { // refract
-    if (refract(wo, wi, this->ior)) {
+    if (refract(wo, wi, this->ior, inMat)) {
       *pdf = 1;
+      inMat = !inMat;
       return ((n_t*n_t)/(n_i*n_i))/fabs(cosi)*(this->transmittance);
     } else {
-      return Spectrum(std::numeric_limits<double>::infinity(), 0, 0);
+      reflect(wo, wi);
+      *pdf = 1;
+      return (wo[2]) ? (this->reflectance * (1.0 / fabs(wo[2]))) : Spectrum();
     }
   }
 
-  return Spectrum();
 }
 
 void BSDF::reflect(const Vector3D& wo, Vector3D* wi) {
-
-  // TODO:
-  // Implement reflection of wo about normal (0,0,1) and store result in wi.
   *wi = Vector3D(-wo[0], -wo[1], wo[2]);
 }
 
-bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior) {
-
-  // TODO:
-  // Use Snell's Law to refract wo surface and store result ray in wi.
-  // Return false if refraction does not occur due to total internal reflection
-  // and true otherwise. When dot(wo,n) is positive, then wo corresponds to a
-  // ray entering the surface through vacuum.
+bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior, bool inMat) {
 
   float n_i, n_t;
   float cosi = wo[2];
@@ -155,7 +157,7 @@ bool BSDF::refract(const Vector3D& wo, Vector3D* wi, float ior) {
 
   Vector3D tmp = Vector3D(wo[0] / sini, wo[1] / sini, 1);
 
-  if (wo[2] > 0) { // entering material
+  if (!inMat) { // entering material
    n_i = 1.0;
    n_t = ior;
   } else { // exiting material 
@@ -185,9 +187,67 @@ Spectrum EmissionBSDF::f(const Vector3D& wo, const Vector3D& wi) {
   return Spectrum();
 }
 
-Spectrum EmissionBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf) {
+Spectrum EmissionBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a) {
+  a = false;
   *wi  = sampler.get_sample(pdf);
   return Spectrum();
 }
+
+
+// Water BSDF //
+WaterBSDF::WaterBSDF(Spectrum transmittance, Spectrum reflectance, float roughness, float ior) {
+  this->transmittance = transmittance;
+  this->reflectance = reflectance;
+  this->roughness = roughness;
+  this->ior = ior;
+  this->glossy = new GlossyBSDF(reflectance, roughness);
+}
+
+Spectrum WaterBSDF::f(const Vector3D& wo, const Vector3D& wi) {
+  return Spectrum();
+}
+
+Spectrum WaterBSDF::sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& inMat) {
+  
+  float n_i, n_t;
+  float cosi = fabs(wo[2]);
+  float sini = sqrt(1 - cosi*cosi);
+
+  if (inMat) { // exiting material
+   n_i = this->ior;
+   n_t = 1.0;
+  } else { // entering material 
+   n_i = 1.0;
+   n_t = this->ior;
+  }
+
+  float sint = sini * (n_i / n_t);
+  float cost = sqrt(1 - sint*sint);
+
+  float r_par = (n_t*cosi - n_i*cost) / (n_t*cosi + n_i*cost);
+  float r_prp = (n_i*cosi - n_t*cost) / (n_i*cosi + n_t*cost);
+
+  float Fr = ((r_par * r_par) + (r_prp * r_prp)) / 2.0;
+
+  if (UniformGridSampler2D().get_sample().x < Fr) { // reflect
+    return glossy->sample_f(wo, wi, pdf, inMat);
+//    reflect(wo, wi);
+//    *pdf = 1;
+//    return (wo
+  } else { // refract
+    if (refract(wo, wi, this->ior, inMat)) {
+      *pdf = 1;
+      inMat = !inMat;
+      return ((n_t*n_t)/(n_i*n_i))/fabs(cosi)*(this->transmittance);
+    } else {
+      reflect(wo, wi);
+      *pdf = 1;
+      return (wo[2]) ? (this->reflectance * (1.0 / fabs(wo[2]))) : Spectrum();
+    }
+  }
+
+}
+
+
 
 } // namespace CMU462
