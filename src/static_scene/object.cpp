@@ -68,7 +68,7 @@ SphereObject::SphereObject(const Vector3D& o, double r, BSDF* bsdf) {
   this->o = o;
   this->r = r;
   this->bsdf = bsdf;
-  
+
 }
 
 std::vector<Primitive*> SphereObject::get_primitives() const {

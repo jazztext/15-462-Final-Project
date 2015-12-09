@@ -58,7 +58,7 @@ class PathTracer {
    * Default constructor.
    * Creates a new pathtracer instance.
    */
-  PathTracer(size_t ns_aa = 1, 
+  PathTracer(size_t ns_aa = 1,
              size_t max_ray_depth = 4, size_t ns_area_light = 1,
              size_t ns_diff = 1, size_t ns_glsy = 1, size_t ns_refr = 1,
              size_t num_threads = 1,
@@ -145,6 +145,19 @@ class PathTracer {
    */
   void save_image();
 
+  enum State {
+    INIT,               ///< to be initialized
+    READY,              ///< initialized ready to do stuff
+    VISUALIZE,          ///< visualizing BVH accelerator aggregate
+    RENDERING,          ///< started but not completed raytracing
+    DONE                ///< started and completed raytracing
+  };
+
+  // Configurables //
+
+  State state;          ///< current state
+
+
  private:
 
   /**
@@ -193,17 +206,6 @@ class PathTracer {
    */
   void log_ray_hit(const Ray& r, double hit_t);
 
-  enum State {
-    INIT,               ///< to be initialized
-    READY,              ///< initialized ready to do stuff
-    VISUALIZE,          ///< visualizing BVH accelerator aggregate
-    RENDERING,          ///< started but not completed raytracing
-    DONE                ///< started and completed raytracing
-  };
-
-  // Configurables //
-
-  State state;          ///< current state
   Scene* scene;         ///< current scene
   Camera* camera;       ///< current camera
 

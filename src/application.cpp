@@ -137,10 +137,27 @@ void Application::render() {
       if (show_hud) draw_hud();
       break;
     case ANIMATION_MODE:
-      if (show_coordinates) draw_coordinates();
-      if (running) scene->animate();
-      scene->render_in_opengl();
-      if (show_hud) draw_hud();
+      if (rendering) {
+        pathtracer->update_screen();
+        if (pathtracer->state == PathTracer::DONE) {
+          pathtracer->save_image();
+          if (frame == 60) rendering = false;
+          else {
+            frame++;
+            scene->animate();
+            pathtracer->stop();
+            pathtracer->clear();
+            set_up_pathtracer();
+            pathtracer->start_raytracing();
+          }
+        }
+      }
+      else {
+        if (show_coordinates) draw_coordinates();
+        if (running) scene->animate();
+        scene->render_in_opengl();
+        if (show_hud) draw_hud();
+      }
       break;
     case VISUALIZE_MODE:
       if (show_coordinates) draw_coordinates();
@@ -486,7 +503,14 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
             break;
           case 's': case 'S':
             running = !running;
+            rendering = false;
             break;
+          case 'q': case 'Q':
+            frame = 0;
+            rendering = true;
+            running = false;
+            set_up_pathtracer();
+            pathtracer->start_raytracing();
         }
       }
       break;
@@ -496,6 +520,7 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
           case 'a': case 'A':
             mode = ANIMATION_MODE;
             running = false;
+            rendering = false;
             scene->init_animation();
             break;
           case 'r': case 'R':
@@ -629,7 +654,7 @@ void Application::to_edit_mode() {
 }
 
 void Application::set_up_pathtracer() {
-  if (mode != EDIT_MODE) return;
+  if (mode != EDIT_MODE && mode != ANIMATION_MODE) return;
   pathtracer->set_camera(&camera);
   pathtracer->set_scene(scene->get_static_scene());
   pathtracer->set_frame_size(screenW, screenH);
