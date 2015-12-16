@@ -20,6 +20,7 @@ struct Ray {
 
   Vector3D inv_d;  ///< component wise inverse
   int sign[3];     ///< fast ray-bbox intersection
+  bool inMaterial;
 
   /**
    * Constructor.
@@ -34,6 +35,7 @@ struct Ray {
     sign[0] = (inv_d.x < 0);
     sign[1] = (inv_d.y < 0);
     sign[2] = (inv_d.z < 0);
+    inMaterial = false;
   }
 
   /**

@@ -76,7 +76,7 @@ class BSDF {
    * \param pdf address to store the pdf of the output incident direction
    * \return reflectance in the output incident and given outgoing directions
    */
-  virtual Spectrum sample_f (const Vector3D& wo, Vector3D* wi, float* pdf) = 0;
+  virtual Spectrum sample_f (const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat) = 0;
 
   /**
    * Get the emission value of the surface material. For non-emitting surfaces
@@ -102,7 +102,7 @@ class BSDF {
   /**
    * Refraction helper
    */
-  virtual bool refract(const Vector3D& wo, Vector3D* wi, float ior);
+  virtual bool refract(const Vector3D& wo, Vector3D* wi, float ior, bool inMaterial);
 
 }; // class BSDF
 
@@ -115,7 +115,7 @@ class DiffuseBSDF : public BSDF {
   DiffuseBSDF(const Spectrum& a) : albedo(a) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat);
   Spectrum get_emission() const { return Spectrum(); }
   bool is_delta() const { return false; }
 
@@ -135,7 +135,7 @@ class MirrorBSDF : public BSDF {
   MirrorBSDF(const Spectrum& reflectance) : reflectance(reflectance) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat);
   Spectrum get_emission() const { return Spectrum(); }
   bool is_delta() const { return true; }
 
@@ -149,7 +149,7 @@ private:
 /**
  * Glossy BSDF.
  */
-/*
+
 class GlossyBSDF : public BSDF {
  public:
 
@@ -157,16 +157,16 @@ class GlossyBSDF : public BSDF {
     : reflectance(reflectance), roughness(roughness) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& a);
   Spectrum get_emission() const { return Spectrum(); }
-  bool is_delta() const { return false; }
+  bool is_delta() const { return true; }
 
 private:
 
   float roughness;
   Spectrum reflectance;
 
-}; // class GlossyBSDF*/
+}; // class GlossyBSDF
 
 /**
  * Refraction BSDF.
@@ -178,7 +178,7 @@ class RefractionBSDF : public BSDF {
     : transmittance(transmittance), roughness(roughness), ior(ior) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat);
   Spectrum get_emission() const { return Spectrum(); }
   bool is_delta() const { return true; }
 
@@ -202,7 +202,7 @@ class GlassBSDF : public BSDF {
     roughness(roughness), ior(ior) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat);
   Spectrum get_emission() const { return Spectrum(); }
   bool is_delta() const { return true; }
 
@@ -224,7 +224,7 @@ class EmissionBSDF : public BSDF {
   EmissionBSDF(const Spectrum& radiance) : radiance(radiance) { }
 
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
-  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf);
+  Spectrum sample_f(const Vector3D& wo, Vector3D* wi, float* pdf, bool& mat);
   Spectrum get_emission() const { return radiance * (1.0 / PI); }
   bool is_delta() const { return false; }
 
@@ -234,6 +234,25 @@ class EmissionBSDF : public BSDF {
   CosineWeightedHemisphereSampler3D sampler;
 
 }; // class EmissionBSDF
+
+/**
+ * Water BSDF.
+ */
+class WaterBSDF : public BSDF {
+ public:
+  
+  WaterBSDF(Spectrum transmittance, Spectrum reflectance, float ior, float roughness);
+ 
+  Spectrum f(const Vector3D& wo, const Vector3D& wi);
+  Spectrum sample_f(const Vector3D& wo, Vector3D *wi, float *pdf, bool& mat);
+  Spectrum get_emission() const { return Spectrum(); }
+  bool is_delta() const { return false; }
+ 
+ private:
+  Spectrum reflectance, transmittance;
+  float ior, roughness;
+  GlossyBSDF *glossy;
+}; // class WaterBSDF:
 
 }  // namespace CMU462
 

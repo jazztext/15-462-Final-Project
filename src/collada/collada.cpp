@@ -881,15 +881,24 @@ void ColladaParser::parse_material ( XMLElement* xml, MaterialInfo& material ) {
           Spectrum reflectance = spectrum_from_string(string(e_reflectance->GetText()));
           BSDF* bsdf = new MirrorBSDF(reflectance);
           material.bsdf = bsdf;
-        /*
-        if (type == "glossy") {
+        } else if (type == "glossy") {
           XMLElement *e_reflectance  = get_element(e_bsdf, "reflectance");
           XMLElement *e_roughness = get_element(e_bsdf, "roughness");
           Spectrum reflectance = spectrum_from_string(string(e_reflectance->GetText()));
           float roughness = atof(e_roughness->GetText());
           BSDF* bsdf = new GlossyBSDF(reflectance, roughness);
           material.bsdf = bsdf;
-        */
+        } else if (type == "water") {
+          XMLElement *e_transmittance  = get_element(e_bsdf, "transmittance");
+          XMLElement *e_reflectance  = get_element(e_bsdf, "reflectance");
+          XMLElement *e_roughness = get_element(e_bsdf, "roughness");
+          XMLElement *e_ior = get_element(e_bsdf, "ior");
+          Spectrum transmittance = spectrum_from_string(string(e_transmittance->GetText()));
+          Spectrum reflectance = spectrum_from_string(string(e_reflectance->GetText()));
+          float roughness = atof(e_roughness->GetText());
+          float ior = atof(e_ior->GetText());
+          BSDF* bsdf = new WaterBSDF(transmittance, reflectance, roughness, ior);
+          material.bsdf = bsdf;
         } else if (type == "refraction") {
           XMLElement *e_transmittance  = get_element(e_bsdf, "transmittance");
           XMLElement *e_roughness = get_element(e_bsdf, "roughness");
