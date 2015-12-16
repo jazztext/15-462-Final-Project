@@ -57,6 +57,13 @@ void Mesh::render_in_opengl() const {
   glEnable(GL_LIGHTING);
 }
 
+ inline void setColor(Color & c)
+ {
+    // FIXME? : Incorporate antialiasing.
+    glColor3f(c.r, c.g, c.b);
+ }
+
+
 void Mesh::draw_faces() const {
 
   for (FaceCIter f = mesh.facesBegin(); f != mesh.facesEnd(); f++) {
@@ -65,11 +72,21 @@ void Mesh::draw_faces() const {
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1.0, 1.0);
 
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
+
     DrawStyle* style = get_draw_style(elementAddress(f));
     if (style != defaultStyle) {
       glDisable(GL_LIGHTING);
       style->style_face();
     }
+
+    setColor( style->faceColor     );
+
+
+    // Coloring.
+    //setElementStyle( elementAddress( f ) );
+
 
     glBegin(GL_POLYGON);
     Vector3D normal(f->normal());
@@ -372,31 +389,47 @@ void Mesh::drag_selection_normal(float dx, float dy,
   if (v == nullptr) {
     return;
   }
-  Vector4D pos(v->position, 1.0);
-  Vector4D norm(v->initialNormal, 0);
+  Eigen::Vector3d p = mesh.positions.row(v->index);
+  Vector3D pos(p[0], p[1], p[2]);
+  Eigen::Vector3d n = mesh.normals.row(v->index);
+  Vector3D norm(n[0], n[1], n[2]);
+  Vector4D normH(norm, 0);
 
   // Translate to unit cube.
-  pos = worldTo3DH * pos;
-  norm = worldTo3DH * norm;
-  double w = pos.w;
-  pos /= w;
+  normH = worldTo3DH * normH;
 
   // Shift by (dx, dy) projected onto the normal
-  double proj = dx * norm.x + dy * norm.y;
-  mesh.displacements[v->index] += proj;
-  v->position = v->initialPosition + mesh.displacements[v->index] *
-                                     v->initialNormal;
+  double proj = (dx * normH.x + dy * normH.y) / normH.w;
+  mesh.displacements[v->index] -= proj;
+  v->position = pos + mesh.displacements[v->index] * norm;
   v->computeNormal();
 }
 
 void Mesh::init_animation()
 {
-  mesh.initWaveEquation(.1, 5);
+  //mesh.initSurfaceTension(.005, 1);
+  mesh.initWaveEquation(.005, 1);
 }
 
 void Mesh::animate()
 {
+
+  //MeshResampler mr;
+  //mesh.stepSurfaceTension();
+  //mr.resample(mesh);
+  //mesh.indexVertices();
+  //mesh.correctVolume();
+  //for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+  //  for (int i = 0; i < 3; i++) v->position[i] = mesh.positions(v->index, i);
+  //}
   mesh.stepWaveEquation();
+  for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+    Eigen::Vector3d newPos = mesh.positions.row(v->index)
+                             + mesh.displacements[v->index] * mesh.normals.row(v->index);
+    for (int i = 0; i < 3; i++) v->position[i] = newPos[i];
+    v->velocity = mesh.vels[v->index];
+  }
+
 }
 
 void Mesh::collapse_selected_edge() {

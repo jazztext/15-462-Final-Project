@@ -26,7 +26,6 @@ set(APPLICATION_SOURCE
     # MeshEdit
     halfEdgeMesh.cpp
     meshEdit.cpp
-    meshDynamics.cpp
 
     # PathTracer
     bvh.cpp
@@ -42,6 +41,11 @@ set(APPLICATION_SOURCE
     # Application
     application.cpp
     main.cpp
+
+    # Animation
+    meshDynamics.cpp
+    kdTree.cpp
+    student_code.cpp
 )
 
 #-------------------------------------------------------------------------------

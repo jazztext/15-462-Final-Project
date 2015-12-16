@@ -363,7 +363,7 @@ class Halfedge : public HalfedgeElement {
     _face = face;
   }
 
-  double cot();
+  double cot(Eigen::MatrixXd &points);
 
  protected:
   HalfedgeIter _twin;  ///< halfedge on the "other side" of the edge
@@ -417,7 +417,9 @@ class Face : public HalfedgeElement {
    */
   bool isBoundary(void) { return _isBoundary; }
 
-  double area();
+  double area(Eigen::MatrixXd &points);
+
+  double volume(Eigen::MatrixXd &points);
 
   /**
    * Get a unit face normal (computed via the area vector).
@@ -451,8 +453,6 @@ class Vertex : public HalfedgeElement {
   int index;
 
   Vector3D position;  ///< vertex position
-
-  Vector3D initialPosition;
 
   /**
    * For Loop subdivision, this will be the updated position of the vertex
@@ -530,7 +530,8 @@ class Vertex : public HalfedgeElement {
    * Vertex normal
    */
   Vector3D normal;
-  Vector3D initialNormal;
+
+  double velocity;
 
   // TODO : add texcoord support
   // Complex texcoord;  ///< vertex texture coordinate
@@ -580,7 +581,7 @@ class Vertex : public HalfedgeElement {
 
   Matrix4x4 quadric;
 
-  double dualArea();
+  double dualArea(Eigen::MatrixXd &points);
 
  protected:
 
@@ -785,9 +786,18 @@ class HalfedgeMesh {
   //should be run whenever the mesh connectivity changes
   void indexVertices();
 
+  double volume();
+
+  double surfaceArea();
+
+  void correctVolume();
+
   //builds the matrix form of the laplacian for the mesh. Should be run again
   //any time the mesh is altered
-  Eigen::SparseMatrix<double> laplacian();
+  Eigen::SparseMatrix<double> laplacian(bool debug = false);
+
+  Eigen::SparseMatrix<double> areas(bool inverted);
+
 
   void initWaveEquation(double dt, double c);
 
@@ -795,11 +805,15 @@ class HalfedgeMesh {
 
   void initVCF(double dt, double gamma);
 
-  void stepVCF();
+  void stepVCF(bool debug = false);
+
+  void initSurfaceTension(double dt, double gamma);
+
+  void stepSurfaceTension();
 
   //outputs of mesh dynamics calculations
   Eigen::VectorXd displacements, vels;
-  Eigen::MatrixXd positions;
+  Eigen::MatrixXd positions, normals;
 
  protected:
 
@@ -813,7 +827,7 @@ class HalfedgeMesh {
   list<Face> faces;
   list<Face> boundaries;
 
-  double _dt, _c, _gamma;
+  double _dt, _dtVCF, _c, _gamma, _V;
   Eigen::SparseMatrix<double> _L;
 
 };  // class HalfedgeMesh

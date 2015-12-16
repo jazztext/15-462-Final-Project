@@ -3,37 +3,7 @@
 
 namespace CMU462 {
 
-VertexIter HalfedgeMesh::splitEdge(EdgeIter e0) {
-
-  // TODO: (meshEdit)
-  // This method should split the given edge and return an iterator to the
-  // newly inserted vertex. The halfedge of this vertex should point along
-  // the edge that was split, rather than the new edges.
-
-  return VertexIter();
-
-}
-
-VertexIter HalfedgeMesh::collapseEdge(EdgeIter e) {
-
-  // TODO: (meshEdit)
-  // This method should collapse the given edge and return an iterator to
-  // the new vertex created by the collapse.
-
-  return VertexIter();
-
-}
-
-EdgeIter HalfedgeMesh::flipEdge(EdgeIter e0) {
-
-  // TODO: (meshEdit)
-  // This method should flip the given edge and return an iterator to the
-  // flipped edge.
-
-  return EdgeIter();
-
-}
-
+  /*
 EdgeRecord::EdgeRecord(EdgeIter& _edge) : edge(_edge) {
 
   // TODO: (meshEdit)
@@ -46,6 +16,7 @@ EdgeRecord::EdgeRecord(EdgeIter& _edge) : edge(_edge) {
   //    EdgeRecord::Cost.
 
 }
+*/
 
 void MeshResampler::upsample(HalfedgeMesh& mesh) {
 
@@ -68,6 +39,7 @@ void MeshResampler::upsample(HalfedgeMesh& mesh) {
 
 }
 
+/*
 void MeshResampler::downsample(HalfedgeMesh& mesh) {
 
   // TODO: (meshEdit)
@@ -87,20 +59,7 @@ void MeshResampler::downsample(HalfedgeMesh& mesh) {
   //    top of the queue.
 
 }
+*/
 
-void MeshResampler::resample(HalfedgeMesh& mesh) {
-
-  // TODO: (meshEdit)
-  // Compute the mean edge length.
-  // Repeat the four main steps for 5 or 6 iterations
-  // -> Split edges much longer than the target length (being careful about
-  //    how the loop is written!)
-  // -> Collapse edges much shorter than the target length.  Here we need to
-  //    be EXTRA careful about advancing the loop, because many edges may have
-  //    been destroyed by a collapse (which ones?)
-  // -> Now flip each edge if it improves vertex degree
-  // -> Finally, apply some tangential smoothing to the vertex positions
-
-}
 
 } // namespace CMU462

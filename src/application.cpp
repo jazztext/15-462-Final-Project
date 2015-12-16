@@ -94,7 +94,7 @@ void Application::initialize_style() {
     hoverStyle.halfedgeColor = Color( 0.6, 0.6, 0.6, 1.0 );
    selectStyle.halfedgeColor = Color( 1.0, 1.0, 1.0, 1.0 );
 
-  defaultStyle.faceColor = Color( 0.3, 0.3, 0.3, 1.0 );
+  defaultStyle.faceColor = Color( 0.5, 0.5, 0.9, 1.0 );
     hoverStyle.faceColor = Color( 0.6, 0.6, 0.6, 1.0 );
    selectStyle.faceColor = Color( 1.0, 1.0, 1.0, 1.0 );
 
