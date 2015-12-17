@@ -198,7 +198,6 @@ void HalfedgeMesh::stepVCF(bool debug)
 void HalfedgeMesh::stepSurfaceTension()
 {
   static int thing = 0;
-  //std::cout << thing++ << " " << volume() << " " << nVertices() << "\n";
   displacements = Eigen::VectorXd::Zero(nVertices());
   Eigen::MatrixXd oldPositions(positions);
   for (int i = 0; i < 60; i++) {

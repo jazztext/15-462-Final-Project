@@ -39,7 +39,6 @@ void MeshResampler::upsample(HalfedgeMesh& mesh) {
 
 }
 
-/*
 void MeshResampler::downsample(HalfedgeMesh& mesh) {
 
   // TODO: (meshEdit)
@@ -59,7 +58,6 @@ void MeshResampler::downsample(HalfedgeMesh& mesh) {
   //    top of the queue.
 
 }
-*/
 
 
 } // namespace CMU462

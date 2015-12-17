@@ -447,29 +447,52 @@ void Mesh::drag_selection_normal(float dx, float dy,
 
 }
 
-void Mesh::init_animation()
+void Mesh::init_animation(int type)
 {
-  //mesh.initSurfaceTension(.005, 1);
-  mesh.initWaveEquation(.01, 0.1);
+  switch (type) {
+    case 0:
+      mesh.initWaveEquation(.01, 0.1);
+      break;
+    case 1:
+      mesh.initVCF(.0001, .1);
+      break;
+    case 2:
+      mesh.initSurfaceTension(.01, .1);
+      break;
+  }
 }
 
-void Mesh::animate()
+void Mesh::animate(int type)
 {
+  MeshResampler mr;
+  switch (type) {
+    case 0:
+      for (int i = 0; i < 5; i++) mesh.stepWaveEquation();
+      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+        Eigen::Vector3d newPos = mesh.positions.row(v->index) + mesh.displacements[v->index] * mesh.normals.row(v->index);
+        for (int i = 0; i < 3; i++) v->position[i] = newPos[i];
+        v->velocity = mesh.vels[v->index];
+      }
+      break;
+    case 1:
+      for (int i = 0; i < 5; i++) mesh.stepVCF();
+      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+        Eigen::Vector3d newPos = mesh.positions.row(v->index) + mesh.displacements[v->index] * mesh.normals.row(v->index);
+        for (int i = 0; i < 3; i++) v->position[i] = newPos[i];
+        v->velocity = mesh.vels[v->index];
+      }
+      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+        for (int i = 0; i < 3; i++) v->position[i] = mesh.positions(v->index, i);
+      }
+      break;
+    case 2:
+      mesh.stepSurfaceTension();
+      mesh.correctVolume();
+      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
+        for (int i = 0; i < 3; i++) v->position[i] = mesh.positions(v->index, i);
+      }
+      break;
 
-  //MeshResampler mr;
-  //mesh.stepSurfaceTension();
-  //mr.resample(mesh);
-  //mesh.indexVertices();
-  //mesh.correctVolume();
-  //for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
-  //  for (int i = 0; i < 3; i++) v->position[i] = mesh.positions(v->index, i);
-  //}
-  for (int i = 0; i < 5; i++) mesh.stepWaveEquation();
-  for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
-    Eigen::Vector3d newPos = mesh.positions.row(v->index)
-                             + mesh.displacements[v->index] * mesh.normals.row(v->index);
-    for (int i = 0; i < 3; i++) v->position[i] = newPos[i];
-    v->velocity = mesh.vels[v->index];
   }
 
 }

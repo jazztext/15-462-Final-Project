@@ -212,8 +212,8 @@ class Scene {
   void downsample_selected_mesh();
   void resample_selected_mesh();
 
-  void init_animation();
-  void animate();
+  void init_animation(int type);
+  void animate(int type);
 
   /**
    * Builds a static scene that's equivalent to the current scene and is easier
