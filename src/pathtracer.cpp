@@ -596,17 +596,18 @@ void PathTracer::decrease_area_light_sample_count() {
   fprintf(stdout, "[PathTracer] Area light sample count decreased to %zu!\n", ns_area_light);
 }
 
-void PathTracer::save_image() {
+void PathTracer::save_image(string filename) {
 
   if (state != DONE) return;
 
-  time_t rawtime;
+/*  time_t rawtime;
   time (&rawtime);
 
   string filename = "Screen Shot ";
   filename += string(ctime(&rawtime));
   filename.erase(filename.end() - 1);
-  filename += string(".png");
+  filename += string(".png"); */
+  
 
   uint32_t* frame = &frameBuffer.data[0];
   size_t w = frameBuffer.w;
