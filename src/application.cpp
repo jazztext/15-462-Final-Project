@@ -150,7 +150,7 @@ void Application::render() {
           if (frame == 119) rendering = false;
           else {
             frame++;
-            scene->animate();
+            scene->animate(simType);
             pathtracer->stop();
             pathtracer->clear();
             set_up_pathtracer();
@@ -160,7 +160,7 @@ void Application::render() {
       }
       else {
         if (show_coordinates) draw_coordinates();
-        if (running) scene->animate();
+        if (running) scene->animate(simType);
         scene->render_in_opengl();
         if (show_hud) draw_hud();
       }
@@ -440,7 +440,8 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
         case 'a': case 'A':
           mode = ANIMATION_MODE;
           running = false;
-          scene->init_animation();
+          simType = 0;
+          scene->init_animation(simType);
           break;
         case 'e': case 'E':
             to_edit_mode();
@@ -475,7 +476,8 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
           case 'a': case 'A':
             mode = ANIMATION_MODE;
             running = false;
-            scene->init_animation();
+            simType = 0;
+            scene->init_animation(simType);
             break;
           case 'e': case 'E':
             to_edit_mode();
@@ -507,6 +509,10 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
           case ' ':
             reset_camera();
             break;
+          case 't': case 'T':
+            simType = (simType + 1) % 3;
+            scene->init_animation(simType);
+            break;
           case 's': case 'S':
             running = !running;
             rendering = false;
@@ -531,7 +537,8 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
             mode = ANIMATION_MODE;
             running = false;
             rendering = false;
-            scene->init_animation();
+            simType = 0;
+            scene->init_animation(simType);
             break;
           case 'r': case 'R':
             set_up_pathtracer();

@@ -248,18 +248,7 @@ namespace CMU462
 
    void MeshResampler::resample( HalfedgeMesh& mesh )
    {
-     bool done = true;
-     do {
-       done = true;
-       for (EdgeIter e = mesh.edgesBegin(); e != mesh.edgesEnd(); e++) {
-         if (e->length() < .000005) {
-           if (mesh.collapseEdge(e) != VertexIter()) {
-             done = false;
-             break;
-           }
-         }
-       }
-     } while (!done);
+     //flip non-locally delaunay edges
      int newQueueSize = -1, prevQueueSize = -1;
      do {
        prevQueueSize = newQueueSize;
@@ -295,7 +284,7 @@ namespace CMU462
 
      } while (newQueueSize != prevQueueSize);
 
-
+     //Fix any remaining non-delaunay edges by splitting and then flipping them
      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++)
        v->isNew = false;
      for (EdgeIter e = mesh.edgesBegin(); e != mesh.edgesEnd(); e++)
@@ -351,125 +340,4 @@ namespace CMU462
        }
      } while (!delauney);
    }
-
-
-   // Given an edge, the constructor for EdgeRecord finds the
-   // optimal point associated with the edge's current quadric,
-   // and assigns this edge a cost based on how much quadric
-   // error is observed at this optimal point.
-   EdgeRecord::EdgeRecord( EdgeIter& _edge )
-   : edge( _edge )
-   {
-      //compute edge quadric
-      Matrix4x4 K = edge->halfedge()->vertex()->quadric +
-                    edge->halfedge()->twin()->vertex()->quadric;
-
-      //solve for the point minimizing the quadric error
-      Matrix3x3 A;
-      Vector3D b;
-      //construct system from K
-      for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-          A[i][j] = K[i][j];
-        }
-        b[i] = K[i][3];
-      }
-      optimalPoint = -A.inv() * b;
-
-      //store cost associated with this point in the edge record
-      Vector4D x(optimalPoint);
-      x[3] = 1;
-      score = dot(x, K * x);
-   }
-
-   void MeshResampler::downsample( HalfedgeMesh& mesh )
-   {
-     //Calculate quadric for each face
-      for (FaceIter f = mesh.facesBegin(); f != mesh.facesEnd(); f++) {
-        Vector3D p0, p1, p2;
-        p0 = f->halfedge()->vertex()->position;
-        p1 = f->halfedge()->next()->vertex()->position;
-        p2 = f->halfedge()->next()->next()->vertex()->position;
-        Vector3D n = cross(p1 - p0, p2 - p0);
-        n.normalize();
-        double d = -dot(n, p0);
-        Vector4D v(n);
-        v[3] = d;
-        f->quadric = outer(v, v);
-      }
-
-
-      //get vertex quadrics by summing quadrics of connected faces
-      for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
-        Matrix4x4 K;
-        HalfedgeIter he = v->halfedge();
-        do {
-          K += he->face()->quadric;
-          he = he->twin()->next();
-        } while (he != v->halfedge());
-        v->quadric = K;
-      }
-
-      //create EdgeRecord for each edge and place it in the priority queue
-      MutablePriorityQueue<EdgeRecord> queue;
-      for (EdgeIter e = mesh.edgesBegin(); e != mesh.edgesEnd(); e++) {
-        EdgeRecord record(e);
-        e->record = record;
-        queue.insert(record);
-      }
-
-      //Keep collapsing the best edge until the number of edges in the mesh
-      //has been reduced by a factor of 4
-      double targetEdges = 4000;
-      int queueSize = mesh.nEdges();
-      while ((mesh.nEdges() > targetEdges) && (queueSize > 0)) {
-        //get best edge from queue
-        EdgeRecord nextEdge = queue.top();
-        queue.pop();
-        queueSize--;
-        EdgeIter e = nextEdge.edge;
-        //get quadric for vertex resulting from collapse
-        Matrix4x4 K = e->halfedge()->vertex()->quadric +
-                      e->halfedge()->twin()->vertex()->quadric;
-        //remove all edges touching the current edge
-        HalfedgeIter he = e->halfedge()->twin()->next();
-        while (he != e->halfedge()) {
-          queue.remove(he->edge()->record);
-          queueSize--;
-          he = he->twin()->next();
-        }
-        he = e->halfedge()->next();
-        while (he != e->halfedge()->twin()) {
-          queue.remove(he->edge()->record);
-          queueSize--;
-          he = he->twin()->next();
-        }
-        //attempt to collapse the edge
-        VertexIter v = mesh.collapseEdge(e);
-        if (v == VertexIter()) {
-          //edge collapse failed, so add neighboring edges back into the queue
-          he = e->halfedge()->twin()->next();
-          while (he != e->halfedge()) {
-            queue.insert(he->edge()->record);
-            queueSize++;
-            he = he->twin()->next();
-          }
-        }
-        else {
-          //edge collapse succeeded, so adjust new vertex and connected edges
-          v->quadric = K;
-          v->position = nextEdge.optimalPoint;
-          he = v->halfedge();
-          do {
-            //update EdgeRecord and reinsert into the queue
-            EdgeRecord record(he->edge());
-            he->edge()->record = record;
-            queue.insert(record);
-            queueSize++;
-            he = he->twin()->next();
-          } while (he != v->halfedge());
-        }
-      }
-   }
-
 }

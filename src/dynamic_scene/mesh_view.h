@@ -23,8 +23,8 @@ class MeshView {
   virtual void resample() = 0;
   virtual void drag_selection_normal(float dx, float dy,
                                      const Matrix4x4& worldTo3DH) = 0;
-  virtual void init_animation() = 0;
-  virtual void animate() = 0;
+  virtual void init_animation(int type) = 0;
+  virtual void animate(int type) = 0;
   virtual void propogate() = 0;
 
 };

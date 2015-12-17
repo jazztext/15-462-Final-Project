@@ -143,19 +143,19 @@ void Scene::resample_selected_mesh() {
   invalidate_selection();
 }
 
-void Scene::init_animation() {
+void Scene::init_animation(int type) {
   for (SceneObject *obj : objects) {
     MeshView *mesh = obj->get_mesh_view();
     if (mesh == nullptr) continue;
-    mesh->init_animation();
+    mesh->init_animation(type);
   }
 }
 
-void Scene::animate() {
+void Scene::animate(int type) {
   for (SceneObject *obj : objects) {
     MeshView *mesh = obj->get_mesh_view();
     if (mesh == nullptr) continue;
-    mesh->animate();
+    mesh->animate(type);
   }
 }
 

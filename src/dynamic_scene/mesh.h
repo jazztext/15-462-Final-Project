@@ -72,8 +72,8 @@ class Mesh : public SceneObject, public MeshView {
   void upsample();
   void downsample();
   void resample();
-  void init_animation();
-  void animate();
+  void init_animation(int type);
+  void animate(int type);
   void propogate();
 
  private:
