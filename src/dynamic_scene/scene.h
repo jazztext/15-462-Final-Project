@@ -195,6 +195,8 @@ class Scene {
 
   void drag_selection_normal(float dx, float dy, const Matrix4x4& worldTo3DH);
 
+  void propogate();
+
   /**
    * Returns information about the given selection, or nullptr if there is none.
    * Note that this object is still owned by the Scene, so it is invalidated on

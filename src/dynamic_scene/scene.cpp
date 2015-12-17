@@ -88,6 +88,12 @@ void Scene::drag_selection_normal(float dx, float dy,
   selection->drag_selection_normal(dx, dy, worldTo3DH);
 }
 
+void Scene::propogate() {
+  MeshView *selection = get_selection_as_mesh();
+  if (selection == nullptr) return;
+  selection->propogate();
+}
+
 SelectionInfo *Scene::get_selection_info() {
   if (!has_selection()) return nullptr;
   selectionInfo.info.clear();

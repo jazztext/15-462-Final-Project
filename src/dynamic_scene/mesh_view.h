@@ -25,6 +25,7 @@ class MeshView {
                                      const Matrix4x4& worldTo3DH) = 0;
   virtual void init_animation() = 0;
   virtual void animate() = 0;
+  virtual void propogate() = 0;
 
 };
 

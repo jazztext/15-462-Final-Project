@@ -379,6 +379,46 @@ void Mesh::drag_selection(float dx, float dy, const Matrix4x4& worldTo3DH) {
   v->position = pos.to3D();
 }
 
+void prop(Vertex *v, double displacement, HalfedgeMesh &mesh)
+{
+  if (abs(displacement) < .001) return;
+  displacement *= .8;
+  HalfedgeIter he = v->halfedge();
+  int i = 0;
+  do {
+    VertexIter newV = he->twin()->vertex();
+    if (newV->isNew) {
+      newV->isNew = false;
+      mesh.displacements[newV->index] += displacement;
+      Eigen::Vector3d n = mesh.normals.row(newV->index);
+      Vector3D norm(n[0], n[1], n[2]);
+      Eigen::Vector3d p = mesh.positions.row(newV->index);
+      Vector3D pos(p[0], p[1], p[2]);
+      newV->position = pos + mesh.displacements[newV->index] * norm;
+      newV->computeNormal();
+      prop(&(*newV), displacement, mesh);
+    }
+    he = he->twin()->next();
+  } while (he != v->halfedge());
+}
+
+void Mesh::propogate()
+{
+  if (!selectedFeature.isValid()) {
+    return;
+  }
+  Vertex *v = selectedFeature.element->getVertex();
+  if (v == nullptr) {
+    return;
+  }
+
+  for (VertexIter vi = mesh.verticesBegin(); vi != mesh.verticesEnd(); vi++) {
+    vi->isNew = true;
+  }
+  v->isNew = false;
+  prop(v, mesh.displacements[v->index], mesh);
+}
+
 void Mesh::drag_selection_normal(float dx, float dy,
                                  const Matrix4x4& worldTo3DH) {
   // Get selection as a 4D vector.
@@ -398,11 +438,13 @@ void Mesh::drag_selection_normal(float dx, float dy,
   // Translate to unit cube.
   normH = worldTo3DH * normH;
 
+
   // Shift by (dx, dy) projected onto the normal
   double proj = (dx * normH.x + dy * normH.y) / normH.w;
   mesh.displacements[v->index] -= proj;
   v->position = pos + mesh.displacements[v->index] * norm;
   v->computeNormal();
+
 }
 
 void Mesh::init_animation()

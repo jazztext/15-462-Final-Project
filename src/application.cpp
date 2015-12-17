@@ -511,6 +511,10 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
             running = false;
             set_up_pathtracer();
             pathtracer->start_raytracing();
+            break;
+          case 'd': case 'D':
+            scene->propogate();
+            break;
         }
       }
       break;

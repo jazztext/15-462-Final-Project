@@ -16,6 +16,7 @@ double Halfedge::cot(Eigen::MatrixXd &points)
 
 double Face::area(Eigen::MatrixXd &points)
 {
+  if (*((void **) &halfedge()) == NULL) return 0;
   int iv1 = halfedge()->vertex()->index;
   int iv2 = halfedge()->next()->vertex()->index;
   int iv3 = halfedge()->next()->next()->vertex()->index;
