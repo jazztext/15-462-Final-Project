@@ -30,11 +30,8 @@ IN ANY MODE
 IN ANIMATION MODE
 
 ’s’ - Start and stop the animation running in the mesh view
-
 ‘q’ - Begin ray-tracing the animation, for 120 frames
-
 ’t’ - Switch between animation types (Starts with the wave equation, then the curvature flow by itself, then the full surface tension simulation)
-
 ‘d’ - Increases the displacement of vertices near the currently selected vertex by an amount proportional to that vertex’s displacement (helps make more reasonable displacements)
 
 Our main results are videos showing our simulation of the wave equation running on a few different meshes with different material properties and initial conditions. Unfortunately, we didn’t have time to render particularly high quality videos, but what we have shows the wave equation dynamics and the water material working correctly.
