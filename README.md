@@ -3,7 +3,7 @@ The final project for 15-462
 
 Zach Shearer (zshearer) and Chris Kaffine (ckaffine) (partner project)
 
-Proposal
+##Proposal
 
 Our goal is to be able to make high quality, efficient renderings of real-world physical simulations  with PDEs on meshes, by combining raytracing with mesh dynamics. Specifically, we'd like to be able to make realistic surface tensioning renderings.
 
@@ -13,7 +13,7 @@ Our goal is to be able to make high quality, efficient renderings of real-world 
 4. We'll implement a few extra liquid materials, such as water.
 5. Add some functionality to the GUI to allow the user to enter disturbances to the system
 
-Results
+##Implementation
 
 1. We were able to successfully implement improved BVH construction. Below are some statistics showing the performance improvement with the new algorithm
 2. We attempted to implement bidirectional pathtracing, but were unable to finish in time. Below are some images created with the most recent version
@@ -22,6 +22,8 @@ Results
 	b. We successfully implemented the wave equation dynamics, and were able to use this to generate our final results.
 4. We successfully implemented a BSDF for glossy materials, which we used to create a BSDF for water.
 5. We ended up adding some rudimentary functionality to the GUI to enable the set up and rendering of liquid animations. The extensions are admittedly not integrated perfectly, but the functionality is summarized below. Also, while in animation mode, you can click and drag vertices along their normals to generate displacements to be used in the wave equation simulation.
+
+##New Viewer Commands
 
 IN ANY MODE
 
@@ -36,5 +38,7 @@ IN ANIMATION MODE
 ’t’ - Switch between animation types (Starts with the wave equation, then the curvature flow by itself, then the full surface tension simulation)
 
 ‘d’ - Increases the displacement of vertices near the currently selected vertex by an amount proportional to that vertex’s displacement (helps make more reasonable displacements)
+
+##Results
 
 Our main results are videos showing our simulation of the wave equation running on a few different meshes with different material properties and initial conditions. Unfortunately, we didn’t have time to render particularly high quality videos, but what we have shows the wave equation dynamics and the water material working correctly.
