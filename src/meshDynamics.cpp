@@ -1,4 +1,4 @@
-#include "halfedgeMesh.h"
+#include "halfEdgeMesh.h"
 #include "student_code.h"
 #include "kdTree.h"
 
