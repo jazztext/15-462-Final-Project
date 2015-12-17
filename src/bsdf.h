@@ -246,7 +246,7 @@ class WaterBSDF : public BSDF {
   Spectrum f(const Vector3D& wo, const Vector3D& wi);
   Spectrum sample_f(const Vector3D& wo, Vector3D *wi, float *pdf, bool& mat);
   Spectrum get_emission() const { return Spectrum(); }
-  bool is_delta() const { return false; }
+  bool is_delta() const { return true; }
  
  private:
   Spectrum reflectance, transmittance;
