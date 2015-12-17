@@ -450,7 +450,7 @@ void Mesh::drag_selection_normal(float dx, float dy,
 void Mesh::init_animation()
 {
   //mesh.initSurfaceTension(.005, 1);
-  mesh.initWaveEquation(.005, 1);
+  mesh.initWaveEquation(.01, 0.1);
 }
 
 void Mesh::animate()
@@ -464,7 +464,7 @@ void Mesh::animate()
   //for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
   //  for (int i = 0; i < 3; i++) v->position[i] = mesh.positions(v->index, i);
   //}
-  mesh.stepWaveEquation();
+  for (int i = 0; i < 5; i++) mesh.stepWaveEquation();
   for (VertexIter v = mesh.verticesBegin(); v != mesh.verticesEnd(); v++) {
     Eigen::Vector3d newPos = mesh.positions.row(v->index)
                              + mesh.displacements[v->index] * mesh.normals.row(v->index);

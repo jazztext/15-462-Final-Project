@@ -147,7 +147,7 @@ void Application::render() {
           fname += to_string(frame);
           fname += string(".png");
           pathtracer->save_image(fname);
-          if (frame == 60) rendering = false;
+          if (frame == 119) rendering = false;
           else {
             frame++;
             scene->animate();
