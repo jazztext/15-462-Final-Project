@@ -140,7 +140,13 @@ void Application::render() {
       if (rendering) {
         pathtracer->update_screen();
         if (pathtracer->state == PathTracer::DONE) {
-          pathtracer->save_image();
+          string fname;
+          fname += string("frame_");
+          if (frame < 10) fname += string("00");
+          else if (frame < 100) fname += string("0");
+          fname += to_string(frame);
+          fname += string(".png");
+          pathtracer->save_image(fname);
           if (frame == 60) rendering = false;
           else {
             frame++;
@@ -445,7 +451,7 @@ void Application::keyboard_event(int key, int event, unsigned char mods) {
             mode = VISUALIZE_MODE;
             break;
         case 's': case 'S':
-            pathtracer->save_image();
+            pathtracer->save_image(string("Screenshot_") + string(to_string(time(NULL))) + string(".png"));
             break;
         case '+': case '=':
             pathtracer->stop();

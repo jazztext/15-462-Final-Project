@@ -143,7 +143,7 @@ class PathTracer {
   /**
    * Save rendered result to png file.
    */
-  void save_image();
+  void save_image(string filename);
 
   enum State {
     INIT,               ///< to be initialized
